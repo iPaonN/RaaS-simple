@@ -18,17 +18,19 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m venv venv
-          source venv/bin/activate
-          pip install --upgrade pip
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install --upgrade pip wheel
           pip install -r requirements.txt
 
       - name: Update environment file
         run: |
-          echo "DISCORD_TOKEN=${{ secrets.DISCORD_TOKEN }}" > .env
-          echo "DISCORD_GUILD_ID=${{ secrets.DISCORD_GUILD_ID }}" >> .env
-          echo "PREFIX=!" >> .env
-          echo "LOG_LEVEL=INFO" >> .env
+          {
+            echo "DISCORD_TOKEN=${{ secrets.DISCORD_TOKEN }}"
+            echo "DEV_GUILD_ID=${{ secrets.DEV_GUILD_ID }}"
+            echo "PREFIX=!"
+            echo "LOG_LEVEL=INFO"
+          } > .env
 
       - name: Restart bot service
         run: |
