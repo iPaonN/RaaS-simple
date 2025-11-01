@@ -4,15 +4,16 @@ from __future__ import annotations
 import discord
 from discord.ext import commands
 
-from restconf.client import RestconfClient
-from restconf.connection_manager import ConnectionManager
 from restconf.command_groups import (
     DeviceCommandGroup,
     InterfaceCommandGroup,
     RoutingCommandGroup,
     ConnectionCommandGroup,
 )
+from restconf.client import RestconfClient
+from restconf.connection_manager import ConnectionManager
 from restconf.service import RestconfService
+from restconf.services.connection import ConnectionService
 from utils.logger import get_logger
 
 _logger = get_logger(__name__)
@@ -25,6 +26,7 @@ class RestconfCog(commands.Cog):
         self.bot = bot
         self._groups = []
         self._connection_manager = ConnectionManager()
+        self._connection_service = ConnectionService(self._connection_manager)
 
     def _service_builder(self, host: str, username: str, password: str) -> RestconfService:
         client = RestconfClient(host, username, password)
@@ -35,9 +37,14 @@ class RestconfCog(commands.Cog):
         """Expose the connection manager for command helpers."""
         return self._connection_manager
 
+    @property
+    def connection_service(self) -> ConnectionService:
+        """Expose the connection service for helpers that need it."""
+        return self._connection_service
+
     async def cog_load(self) -> None:
         group_instances = [
-            ConnectionCommandGroup(self._connection_manager),
+            ConnectionCommandGroup(self._connection_manager, self._connection_service),
             InterfaceCommandGroup(self._service_builder, self._connection_manager),
             DeviceCommandGroup(self._service_builder, self._connection_manager),
             RoutingCommandGroup(self._service_builder, self._connection_manager),

@@ -1,22 +1,22 @@
 """Slash command registrations for connection management."""
 from __future__ import annotations
 
-from typing import Callable, Optional, Sequence
+from typing import Optional, Sequence
 
 import discord
 from discord import app_commands
 
 from restconf.command_groups.base import CommandGroup
 from restconf.connection_manager import ConnectionManager
-from restconf.client import RestconfClient
 from restconf.errors import RestconfConnectionError, RestconfHTTPError
-from restconf.service import RestconfService
+from restconf.services.connection import ConnectionResult, ConnectionService
 from utils.embeds import create_success_embed, create_error_embed, create_info_embed
 
-ServiceBuilder = Callable[[str, str, str], RestconfService]
 
-
-def _build_connect_command(connection_manager: ConnectionManager) -> app_commands.Command:
+def _build_connect_command(
+    connection_manager: ConnectionManager,
+    connection_service: ConnectionService,
+) -> app_commands.Command:
     @app_commands.command(name="connect", description="Connect to a router or show current connection")
     @app_commands.describe(
         host="Router IP address or hostname (optional)",
@@ -33,12 +33,15 @@ def _build_connect_command(connection_manager: ConnectionManager) -> app_command
         
         # If no parameters provided, show current connection
         if host is None and username is None and password is None:
-            current_host = connection_manager.get_host()
+            connection = connection_manager.get_connection()
             
-            if current_host:
+            if connection:
                 embed = create_info_embed(
                     title="🔌 Current Connection",
-                    description=f"Connected to router: **{current_host}**"
+                    description=(
+                        "Connected to router: **{host}**\n"
+                        "**Username:** `{username}`"
+                    ).format(host=connection.host, username=connection.username)
                 )
             else:
                 embed = create_info_embed(
@@ -61,19 +64,15 @@ def _build_connect_command(connection_manager: ConnectionManager) -> app_command
         
         # Try to connect to the router
         try:
-            # Create a test client to verify connection
-            test_client = RestconfClient(host=host, username=username, password=password)
-            
-            # Try to fetch hostname as a connection test
-            await test_client.get("Cisco-IOS-XE-native:native/hostname")
-            
-            # Connection successful, save it
-            connection_manager.set_connection(host, username, password)
-            
+            result: ConnectionResult = await connection_service.connect(host, username, password)
+
             embed = create_success_embed(
                 title="✅ Connection Successful",
-                description=f"Successfully connected to router: **{host}**\n\n"
-                            f"All RESTCONF commands will now use this connection."
+                description=(
+                    "Successfully connected to router: **{host}**\n"
+                    "Hostname: **{hostname}**\n\n"
+                    "All RESTCONF commands will now use this connection."
+                ).format(host=result.host, hostname=result.hostname),
             )
             await interaction.followup.send(embed=embed)
             
@@ -111,12 +110,13 @@ def _build_connect_command(connection_manager: ConnectionManager) -> app_command
     return command
 
 
-def _build_disconnect_command(connection_manager: ConnectionManager) -> app_commands.Command:
+def _build_disconnect_command(connection_service: ConnectionService) -> app_commands.Command:
     @app_commands.command(name="disconnect", description="Disconnect from the current router")
     async def command(interaction: discord.Interaction) -> None:
         await interaction.response.defer(thinking=True)
         
-        if not connection_manager.is_connected():
+        connection = connection_service.get_connection()
+        if not connection:
             embed = create_info_embed(
                 title="ℹ️ No Connection",
                 description="No router is currently connected."
@@ -124,12 +124,11 @@ def _build_disconnect_command(connection_manager: ConnectionManager) -> app_comm
             await interaction.followup.send(embed=embed)
             return
         
-        current_host = connection_manager.get_host()
-        connection_manager.clear_connection()
+        connection_service.disconnect()
         
         embed = create_success_embed(
             title="✅ Disconnected",
-            description=f"Disconnected from router: **{current_host}**"
+            description=f"Disconnected from router: **{connection.host}**"
         )
         await interaction.followup.send(embed=embed)
     
@@ -137,9 +136,9 @@ def _build_disconnect_command(connection_manager: ConnectionManager) -> app_comm
 
 
 class ConnectionCommandGroup(CommandGroup):
-    def __init__(self, connection_manager: ConnectionManager) -> None:
+    def __init__(self, connection_manager: ConnectionManager, connection_service: ConnectionService) -> None:
         commands: Sequence[app_commands.Command] = [
-            _build_connect_command(connection_manager),
-            _build_disconnect_command(connection_manager),
+            _build_connect_command(connection_manager, connection_service),
+            _build_disconnect_command(connection_service),
         ]
         super().__init__(commands)
