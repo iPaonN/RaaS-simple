@@ -6,9 +6,13 @@ from typing import Dict, List
 from restconf.client import RestconfClient
 from restconf.errors import RestconfHTTPError, RestconfNotFoundError
 from restconf.models import (
+    Banner,
+    DeviceConfig,
+    DomainName,
     Hostname,
     Interface,
     InterfaceAddress,
+    NameServerList,
     RoutingTable,
     StaticRoute,
 )
@@ -187,3 +191,232 @@ class RestconfService:
             next_hop = entry.get("next-hop") or entry.get("fwd") or "unknown"
             routes.append(StaticRoute(prefix=str(prefix), next_hop=str(next_hop)))
         return routes
+
+    # ------------------------------------------------------------------
+    # Configuration operations
+    # ------------------------------------------------------------------
+    async def fetch_running_config(self) -> DeviceConfig:
+        """Fetch running configuration from the device."""
+        try:
+            # Try using Cisco IOS-XE native model
+            payload = await self._client.get("Cisco-IOS-XE-native:native")
+            
+            # Convert to pretty JSON string
+            import json
+            config_content = json.dumps(payload, indent=2)
+            
+            return DeviceConfig(
+                config_type="running",
+                content=config_content,
+                size=len(config_content)
+            )
+        except RestconfHTTPError:
+            # Fallback: try to get specific sections
+            try:
+                payload = await self._client.get("ietf-interfaces:interfaces")
+                import json
+                config_content = json.dumps(payload, indent=2)
+                
+                return DeviceConfig(
+                    config_type="running",
+                    content=config_content,
+                    size=len(config_content)
+                )
+            except Exception as e:
+                raise RestconfHTTPError(
+                    status=500,
+                    message=f"Unable to fetch running config: {str(e)}"
+                )
+
+    async def fetch_startup_config(self) -> DeviceConfig:
+        """Fetch startup configuration from the device."""
+        try:
+            # Note: RESTCONF typically only provides running config
+            # Startup config may not be available via RESTCONF on all devices
+            payload = await self._client.get("Cisco-IOS-XE-native:native")
+            
+            import json
+            config_content = json.dumps(payload, indent=2)
+            
+            return DeviceConfig(
+                config_type="startup",
+                content="Startup config may not be available via RESTCONF.\nShowing running config instead:\n\n" + config_content,
+                size=len(config_content)
+            )
+        except Exception as e:
+            raise RestconfHTTPError(
+                status=500,
+                message=f"Unable to fetch startup config: {str(e)}"
+            )
+
+    # ------------------------------------------------------------------
+    # Banner operations
+    # ------------------------------------------------------------------
+    async def fetch_banner_motd(self) -> Banner:
+        """Fetch Message of the Day banner."""
+        try:
+            payload = await self._client.get("Cisco-IOS-XE-native:native/banner/motd")
+            
+            # Extract banner message
+            motd_data = payload.get("Cisco-IOS-XE-native:motd", {})
+            banner_text = motd_data.get("banner", "")
+            
+            return Banner(
+                banner_type="motd",
+                message=banner_text if banner_text else "No MOTD banner configured"
+            )
+        except RestconfNotFoundError:
+            return Banner(
+                banner_type="motd",
+                message="No MOTD banner configured"
+            )
+        except Exception as e:
+            raise RestconfHTTPError(
+                status=500,
+                message=f"Unable to fetch MOTD banner: {str(e)}"
+            )
+
+    async def update_banner_motd(self, message: str) -> Banner:
+        """Update Message of the Day banner."""
+        try:
+            await self._client.patch(
+                "Cisco-IOS-XE-native:native/banner",
+                data={
+                    "Cisco-IOS-XE-native:banner": {
+                        "motd": {
+                            "banner": message
+                        }
+                    }
+                }
+            )
+            
+            return Banner(
+                banner_type="motd",
+                message=message
+            )
+        except Exception as e:
+            raise RestconfHTTPError(
+                status=500,
+                message=f"Unable to update MOTD banner: {str(e)}"
+            )
+
+    # ------------------------------------------------------------------
+    # Domain Name operations
+    # ------------------------------------------------------------------
+    async def fetch_domain_name(self) -> DomainName:
+        """Fetch domain name configuration."""
+        try:
+            payload = await self._client.get("Cisco-IOS-XE-native:native/ip/domain/name")
+            
+            # Extract domain name
+            domain_value = payload.get("Cisco-IOS-XE-native:name", "")
+            
+            return DomainName(
+                value=domain_value if domain_value else "No domain name configured"
+            )
+        except RestconfNotFoundError:
+            return DomainName(value="No domain name configured")
+        except Exception as e:
+            raise RestconfHTTPError(
+                status=500,
+                message=f"Unable to fetch domain name: {str(e)}"
+            )
+
+    async def update_domain_name(self, domain: str) -> DomainName:
+        """Update domain name configuration."""
+        try:
+            await self._client.put(
+                "Cisco-IOS-XE-native:native/ip/domain/name",
+                data={
+                    "Cisco-IOS-XE-native:name": domain
+                }
+            )
+            
+            return DomainName(value=domain)
+        except Exception as e:
+            raise RestconfHTTPError(
+                status=500,
+                message=f"Unable to update domain name: {str(e)}"
+            )
+
+    # ------------------------------------------------------------------
+    # Name Server operations
+    # ------------------------------------------------------------------
+    async def fetch_name_servers(self) -> NameServerList:
+        """Fetch DNS name server configuration."""
+        try:
+            # Try Cisco native model first
+            payload = await self._client.get("Cisco-IOS-XE-native:native/ip/name-server")
+            
+            # Log the raw payload for debugging
+            _logger.info(f"Name server payload: {payload}")
+            
+            # Extract name server data - handle multiple formats
+            servers_data = payload.get("Cisco-IOS-XE-native:name-server", {})
+            
+            servers = []
+            
+            if isinstance(servers_data, dict):
+                # Cisco IOS-XE format: {"no-vrf": ["8.8.8.8", "8.8.4.4"]} or {"vrf-name": ["1.1.1.1"]}
+                # We need to extract IP addresses from all VRF configurations
+                for vrf_key, vrf_servers in servers_data.items():
+                    if isinstance(vrf_servers, list):
+                        # Extract all IP addresses from this VRF
+                        for server in vrf_servers:
+                            if isinstance(server, str):
+                                servers.append(server)
+                            elif isinstance(server, dict):
+                                # Handle nested object format
+                                for possible_key in ["ip", "name", "address", "server"]:
+                                    if possible_key in server:
+                                        servers.append(str(server[possible_key]))
+                                        break
+                    elif isinstance(vrf_servers, str):
+                        # Single IP string
+                        servers.append(vrf_servers)
+            elif isinstance(servers_data, list):
+                # Format: List of strings or objects (unlikely but handle it)
+                for item in servers_data:
+                    if isinstance(item, str):
+                        servers.append(item)
+                    elif isinstance(item, dict):
+                        for possible_key in ["ip", "name", "address", "server"]:
+                            if possible_key in item:
+                                servers.append(str(item[possible_key]))
+                                break
+            elif isinstance(servers_data, str):
+                # Format: Single string
+                servers = [servers_data]
+            
+            _logger.info(f"Parsed name servers: {servers}")
+            return NameServerList(servers=servers)
+        except RestconfNotFoundError:
+            return NameServerList(servers=[])
+        except Exception as e:
+            _logger.error(f"Error fetching name servers: {e}")
+            raise RestconfHTTPError(
+                status=500,
+                message=f"Unable to fetch name servers: {str(e)}"
+            )
+
+    # ------------------------------------------------------------------
+    # Save Configuration operations
+    # ------------------------------------------------------------------
+    async def save_config(self) -> bool:
+        """Save running-config to startup-config using Cisco operations RPC."""
+        try:
+            # Use Cisco IOS-XE save-config RPC operation
+            # This is equivalent to 'write memory' or 'copy running-config startup-config'
+            await self._client.post_operation(
+                "cisco-ia:save-config",
+                data={}
+            )
+            _logger.info("Configuration saved successfully")
+            return True
+        except Exception as e:
+            _logger.error(f"Error saving configuration: {e}")
+            raise RestconfHTTPError(
+                status=500,
+                message=f"Unable to save configuration: {str(e)}"
+            )
+

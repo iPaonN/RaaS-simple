@@ -32,6 +32,7 @@ class RestconfClient:
     ) -> None:
         self._host = host
         self._base_url = f"https://{host}/restconf/data"
+        self._operations_url = f"https://{host}/restconf/operations"
         self._auth = (username, password)
         self._timeout = timeout
         self._client_factory = client_factory or self._default_client_factory
@@ -98,3 +99,38 @@ class RestconfClient:
 
     async def delete(self, endpoint: str) -> Dict[str, Any]:
         return await self._request("DELETE", endpoint)
+
+    async def post_operation(self, operation: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute a RESTCONF operation (RPC) via the operations endpoint."""
+        try:
+            async with httpx.AsyncClient(
+                auth=self._auth,
+                headers={
+                    "Accept": "application/yang-data+json",
+                    "Content-Type": "application/yang-data+json",
+                },
+                timeout=self._timeout,
+                verify=False,
+            ) as client:
+                response = await client.post(
+                    f"{self._operations_url}/{operation}",
+                    json=data
+                )
+                
+                if response.is_success:
+                    if response.status_code == httpx.codes.NO_CONTENT:
+                        return {}
+                    try:
+                        return response.json()
+                    except ValueError:
+                        return {}
+                
+                # Handle errors
+                payload = response.text if response.text else None
+                raise RestconfHTTPError(
+                    status=response.status_code,
+                    message=f"Operation failed: {response.reason_phrase}",
+                    details=payload
+                )
+        except httpx.HTTPError as exc:
+            raise RestconfConnectionError(str(exc), host=self._host) from exc
