@@ -1,0 +1,20 @@
+"""
+Bot Constants
+"""
+
+# Embed limits
+EMBED_TITLE_LIMIT = 256
+EMBED_DESCRIPTION_LIMIT = 4096
+EMBED_FIELD_LIMIT = 25
+EMBED_FIELD_NAME_LIMIT = 256
+EMBED_FIELD_VALUE_LIMIT = 1024
+EMBED_FOOTER_LIMIT = 2048
+EMBED_AUTHOR_LIMIT = 256
+
+# Message limits
+MESSAGE_LIMIT = 2000
+
+# Bot information
+BOT_VERSION = '1.0.0'
+BOT_AUTHOR = 'Your Name'
+BOT_REPOSITORY = 'https://github.com/yourusername/yourbot'
