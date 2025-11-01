@@ -7,6 +7,8 @@ on:
 jobs:
   deploy:
     runs-on: self-hosted
+    env:
+      DEPLOY_DIR: /opt/femrouter
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -16,25 +18,32 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Sync code to deployment directory
+        run: |
+          sudo mkdir -p "$DEPLOY_DIR"
+          sudo rsync -a --delete --exclude '.venv' ./ "$DEPLOY_DIR"/
+          sudo chown -R $USER:$USER "$DEPLOY_DIR"
+
       - name: Install dependencies
         run: |
-          python3 -m venv .venv
-          source .venv/bin/activate
+          rm -rf "$DEPLOY_DIR/.venv"
+          python3 -m venv "$DEPLOY_DIR/.venv"
+          source "$DEPLOY_DIR/.venv/bin/activate"
           pip install --upgrade pip wheel
-          pip install -r requirements.txt
+          pip install -r "$DEPLOY_DIR/requirements.txt"
 
       - name: Ensure systemd service exists
         run: |
-          sudo tee /etc/systemd/system/discord-bot.service > /dev/null <<'EOF'
+          sudo tee /etc/systemd/system/discord-bot.service > /dev/null <<EOF
           [Unit]
           Description=FemRouter Discord Bot
           After=network.target
 
           [Service]
           Type=simple
-          WorkingDirectory=${{ github.workspace }}
-          EnvironmentFile=${{ github.workspace }}/.env
-          ExecStart=${{ github.workspace }}/.venv/bin/python bot.py
+          WorkingDirectory=$DEPLOY_DIR
+          EnvironmentFile=$DEPLOY_DIR/.env
+          ExecStart=$DEPLOY_DIR/.venv/bin/python $DEPLOY_DIR/bot.py
           Restart=always
           RestartSec=5
 
@@ -46,12 +55,12 @@ jobs:
 
       - name: Update environment file
         run: |
-          {
-            echo "DISCORD_TOKEN=${{ secrets.DISCORD_TOKEN }}"
-            echo "DEV_GUILD_ID=${{ secrets.DEV_GUILD_ID }}"
-            echo "PREFIX=!"
-            echo "LOG_LEVEL=INFO"
-          } > .env
+          cat <<EOF > "$DEPLOY_DIR/.env"
+          DISCORD_TOKEN=${{ secrets.DISCORD_TOKEN }}
+          DEV_GUILD_ID=${{ secrets.DEV_GUILD_ID }}
+          PREFIX=!
+          LOG_LEVEL=INFO
+          EOF
 
       - name: Restart bot service
         run: |
