@@ -18,4 +18,8 @@ class CommandGroup:
 
     def unregister(self, tree: app_commands.CommandTree) -> None:
         for command in self._commands:
-            tree.remove_command(command.name, type=command.type)
+            try:
+                tree.remove_command(command.name)
+            except Exception:
+                # Ignore errors during unregister (e.g., command already removed)
+                pass
