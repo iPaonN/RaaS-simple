@@ -93,20 +93,29 @@ class RestconfService:
         iface_type = self._get_interface_type(name)
         iface_number = self._get_interface_number(name)
         
-        data = {
-            f"Cisco-IOS-XE-native:{iface_type}": {
-                "name": iface_number,
+        if enabled:
+            # To enable: DELETE the shutdown configuration (no shutdown)
+            try:
+                await self._client.delete(
+                    f"Cisco-IOS-XE-native:native/interface/{iface_type}={iface_number}/shutdown"
+                )
+            except RestconfNotFoundError:
+                # If shutdown doesn't exist, interface is already enabled
+                _logger.info("Interface %s is already enabled (no shutdown config found)", name)
+        else:
+            # To disable: PATCH with shutdown configuration
+            data = {
+                f"Cisco-IOS-XE-native:{iface_type}": {
+                    "name": iface_number,
+                    "shutdown": [None]
+                }
             }
-        }
-        # In Cisco IOS, "shutdown" disables the interface (absence of shutdown = enabled)
-        if not enabled:
-            data[f"Cisco-IOS-XE-native:{iface_type}"]["shutdown"] = [None]
+            await self._client.patch(
+                f"Cisco-IOS-XE-native:native/interface/{iface_type}={iface_number}",
+                data=data,
+            )
         
-        await self._client.patch(
-            f"Cisco-IOS-XE-native:native/interface/{iface_type}={iface_number}",
-            data=data,
-        )
-        _logger.info("Set interface %s state to %s", name, enabled)
+        _logger.info("Set interface %s state to %s", name, "enabled" if enabled else "disabled")
         return await self.fetch_interface(name)
 
     async def update_interface_ip(self, name: str, ip: str, netmask: str) -> Interface:
@@ -205,14 +214,29 @@ class RestconfService:
         interface_type = str(payload.get("interface-type", "unknown"))
         description = str(payload.get("description")) if payload.get("description") else None
         
-        # IPv4 addresses
+        # IPv4 addresses - handle both single address and multiple addresses
         addresses = []
         ipv4_data = payload.get("ipv4", {}) if isinstance(payload.get("ipv4"), dict) else {}
+        
+        # Check for single primary address (simple format)
         ipv4_address = ipv4_data.get("address")
         ipv4_netmask = ipv4_data.get("netmask")
         
         if ipv4_address and ipv4_netmask:
             addresses.append(InterfaceAddress(ip=str(ipv4_address), netmask=str(ipv4_netmask)))
+        
+        # Also check for multiple addresses in array format
+        if "addresses" in ipv4_data:
+            addr_list = ipv4_data.get("addresses", [])
+            if isinstance(addr_list, list):
+                for addr_entry in addr_list:
+                    if isinstance(addr_entry, dict):
+                        ip = addr_entry.get("ip") or addr_entry.get("address")
+                        mask = addr_entry.get("netmask") or addr_entry.get("mask")
+                        if ip and mask:
+                            # Avoid duplicate if already added from simple format
+                            if not any(a.ip == str(ip) and a.netmask == str(mask) for a in addresses):
+                                addresses.append(InterfaceAddress(ip=str(ip), netmask=str(mask)))
         
         return Interface(
             name=name,
