@@ -74,15 +74,29 @@ class InterfaceService(RestconfDomainService):
         iface_type = self._get_interface_type(name)
         iface_number = self._get_interface_number(name)
 
-        data = {f"Cisco-IOS-XE-native:{iface_type}": {"name": iface_number}}
-        if not enabled:
-            data[f"Cisco-IOS-XE-native:{iface_type}"]["shutdown"] = [None]
-
-        await self.client.patch(
-            f"Cisco-IOS-XE-native:native/interface/{iface_type}={iface_number}",
-            data=data,
-        )
-        _logger.info("Set interface %s state to %s", name, enabled)
+        if enabled:
+            # To enable: DELETE the shutdown configuration (no shutdown)
+            try:
+                await self.client.delete(
+                    f"Cisco-IOS-XE-native:native/interface/{iface_type}={iface_number}/shutdown"
+                )
+            except RestconfNotFoundError:
+                # If shutdown doesn't exist, interface is already enabled
+                _logger.info("Interface %s is already enabled (no shutdown config found)", name)
+        else:
+            # To disable: PATCH with shutdown configuration
+            data = {
+                f"Cisco-IOS-XE-native:{iface_type}": {
+                    "name": iface_number,
+                    "shutdown": [None]
+                }
+            }
+            await self.client.patch(
+                f"Cisco-IOS-XE-native:native/interface/{iface_type}={iface_number}",
+                data=data,
+            )
+        
+        _logger.info("Set interface %s state to %s", name, "enabled" if enabled else "disabled")
         return await self.fetch_interface(name)
 
     async def update_interface_ip(self, name: str, ip: str, netmask: str) -> Interface:
