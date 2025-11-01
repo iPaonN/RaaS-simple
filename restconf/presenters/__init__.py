@@ -10,7 +10,6 @@ from restconf.models import (
     Hostname,
     Interface,
     NameServerList,
-    RoutingTable,
     StaticRoute,
 )
 
@@ -53,10 +52,6 @@ def render_name_servers(host: str, name_servers: NameServerList):
     return device_presenter.render_name_servers(host, name_servers)
 
 
-def render_routing_table(host: str, table: RoutingTable):
-    return routing_presenter.render_table(host, table)
-
-
 def render_static_routes(host: str, routes: Sequence[StaticRoute]):
     return routing_presenter.render_static_routes(host, routes)
 
@@ -77,7 +72,6 @@ __all__ = [
     "render_interface_list",
     "render_interface",
     "render_hostname",
-    "render_routing_table",
     "render_static_routes",
     "render_restconf_error",
 ]
