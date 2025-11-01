@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Sequence
 
-from restconf.models import Hostname, Interface, RoutingTable, StaticRoute
+from restconf.models import Hostname, Interface, StaticRoute
 
 from .device import DevicePresenter
 from .errors import ErrorPresenter
@@ -28,10 +28,6 @@ def render_hostname(host: str, hostname: Hostname):
     return device_presenter.render_hostname(host, hostname)
 
 
-def render_routing_table(host: str, table: RoutingTable):
-    return routing_presenter.render_table(host, table)
-
-
 def render_static_routes(host: str, routes: Sequence[StaticRoute]):
     return routing_presenter.render_static_routes(host, routes)
 
@@ -48,7 +44,6 @@ __all__ = [
     "render_interface_list",
     "render_interface",
     "render_hostname",
-    "render_routing_table",
     "render_static_routes",
     "render_restconf_error",
 ]

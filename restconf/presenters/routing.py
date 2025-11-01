@@ -5,7 +5,7 @@ from typing import Sequence
 
 import discord
 
-from restconf.models import RoutingTable, StaticRoute
+from restconf.models import StaticRoute
 from utils.embeds import create_info_embed, create_success_embed
 
 from .base import EmbedPresenter
@@ -13,18 +13,6 @@ from .base import EmbedPresenter
 
 class RoutingPresenter(EmbedPresenter):
     """Render routing information into embeds."""
-
-    def render_table(self, host: str, table: RoutingTable) -> discord.Embed:
-        embed = create_info_embed(
-            title=f"🛣️ Routing Table - {host}",
-            description="Routing information retrieved successfully.",
-        )
-        embed.add_field(
-            name="Static Routes",
-            value=str(len(table.static_routes)),
-            inline=False,
-        )
-        return embed
 
     def render_static_routes(self, host: str, routes: Sequence[StaticRoute]) -> discord.Embed:
         if not routes:

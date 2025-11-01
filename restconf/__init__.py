@@ -7,7 +7,6 @@ from .models import (
     InterfaceAddress,
     Hostname,
     StaticRoute,
-    RoutingTable,
 )
 from .errors import (
     RestconfError,
@@ -23,7 +22,6 @@ __all__ = [
     "InterfaceAddress",
     "Hostname",
     "StaticRoute",
-    "RoutingTable",
     "RestconfError",
     "RestconfConnectionError",
     "RestconfHTTPError",
