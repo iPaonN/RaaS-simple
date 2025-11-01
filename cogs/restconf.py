@@ -30,6 +30,11 @@ class RestconfCog(commands.Cog):
         client = RestconfClient(host, username, password)
         return RestconfService(client)
 
+    @property
+    def connection_manager(self) -> ConnectionManager:
+        """Expose the connection manager for command helpers."""
+        return self._connection_manager
+
     async def cog_load(self) -> None:
         group_instances = [
             ConnectionCommandGroup(self._connection_manager),

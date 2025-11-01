@@ -53,7 +53,7 @@ def _build_get_routing_table(service_builder: ServiceBuilder, connection_manager
         
         service = service_builder(host, username, password)
         try:
-            table = await service.fetch_routing_table()
+            table = await service.routing.fetch_routing_table()
         except RestconfError as exc:
             await interaction.followup.send(embed=render_restconf_error(str(exc)), ephemeral=True)
             return
@@ -95,7 +95,7 @@ def _build_get_static_routes(service_builder: ServiceBuilder, connection_manager
         
         service = service_builder(host, username, password)
         try:
-            routes = await service.fetch_static_routes()
+            routes = await service.routing.fetch_static_routes()
         except RestconfError as exc:
             await interaction.followup.send(embed=render_restconf_error(str(exc)), ephemeral=True)
             return
