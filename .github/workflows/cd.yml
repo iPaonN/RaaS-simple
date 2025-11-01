@@ -27,12 +27,17 @@ jobs:
       - name: Create/Update .env file
         run: |
           mkdir -p /opt/femrouter
-          cat > /opt/femrouter/.env << EOF
-          DISCORD_TOKEN=${{ secrets.DISCORD_TOKEN }}
-          DEV_GUILD_ID=${{ secrets.DEV_GUILD_ID }}
-          PREFIX=!
-          LOG_LEVEL=INFO
-          EOF
+          echo "DISCORD_TOKEN=${{ secrets.DISCORD_TOKEN }}" > /opt/femrouter/.env
+          echo "DEV_GUILD_ID=${{ secrets.DEV_GUILD_ID }}" >> /opt/femrouter/.env
+          echo "PREFIX=!" >> /opt/femrouter/.env
+          echo "LOG_LEVEL=INFO" >> /opt/femrouter/.env
+      
+      - name: Verify .env file was created
+        run: |
+          echo "--- .env file check ---"
+          ls -la /opt/femrouter/.env
+          echo "File size: $(wc -c < /opt/femrouter/.env) bytes"
+          echo "Lines in file: $(wc -l < /opt/femrouter/.env)"
 
       - name: Stop and remove old container
         run: |
