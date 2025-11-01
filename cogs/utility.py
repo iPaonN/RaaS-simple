@@ -159,6 +159,39 @@ class Utility(commands.Cog):
             inline=False
         )
         
+        # RESTCONF Interface commands
+        embed.add_field(
+            name="🌐 RESTCONF - Interfaces",
+            value=(
+                "`/get-interfaces` - List all interfaces\n"
+                "`/get-interface` - Interface details\n"
+                "`/set-interface-description` - Set description\n"
+                "`/set-interface-state` - Enable/disable\n"
+                "`/set-interface-ip` - Configure IP address"
+            ),
+            inline=False
+        )
+        
+        # RESTCONF Device commands
+        embed.add_field(
+            name="🖥️ RESTCONF - Device",
+            value=(
+                "`/get-hostname` - Get hostname\n"
+                "`/set-hostname` - Set hostname"
+            ),
+            inline=False
+        )
+        
+        # RESTCONF Routing commands
+        embed.add_field(
+            name="🛣️ RESTCONF - Routing",
+            value=(
+                "`/get-routing-table` - Routing table\n"
+                "`/get-static-routes` - Static routes"
+            ),
+            inline=False
+        )
+        
         await interaction.response.send_message(embed=embed)
 
 

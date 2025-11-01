@@ -13,6 +13,7 @@ A modern Discord bot template with slash commands, built using discord.py 2.0+
 - 🎮 Fun commands
 - ⚖️ Moderation tools
 - 📊 Server/user info commands
+- 🌐 RESTCONF API integration for Cisco CSR1000v
 
 ## Quick Start
 
@@ -68,10 +69,17 @@ discord-bot/
 ├── cogs/                   # Command modules
 │   ├── moderation.py       # Moderation commands
 │   ├── fun.py              # Fun commands
-│   └── utility.py          # Utility commands
+│   ├── utility.py          # Utility commands
+│   ├── interface_commands.py  # Interface management (RESTCONF)
+│   ├── device_commands.py     # Device configuration (RESTCONF)
+│   └── routing_commands.py    # Routing management (RESTCONF)
 ├── utils/                  # Helper functions
 │   ├── embeds.py           # Embed builders
-│   └── checks.py           # Permission checks
+│   ├── checks.py           # Permission checks
+│   ├── restconf_client.py  # RESTCONF HTTP client
+│   └── restconf_service.py # RESTCONF business logic
+├── docs/                   # Documentation
+│   └── RESTCONF_ARCHITECTURE.md  # Architecture guide
 ├── logs/                   # Log files (auto-created)
 ├── .env.example            # Example environment file
 ├── .gitignore              # Git ignore file
@@ -94,9 +102,24 @@ discord-bot/
 ### Utility
 - `/ping` - Check bot latency
 - `/serverinfo` - Get server information
-- `/userinfo` - Get user information
+- `/userinfo` - User information
 - `/botinfo` - Get bot information
 - `/help` - Show all commands
+
+### RESTCONF - Interface Management
+- `/get-interfaces` - Get all interfaces from router
+- `/get-interface` - Get specific interface details
+- `/set-interface-description` - Configure interface description
+- `/set-interface-state` - Enable or disable an interface
+- `/set-interface-ip` - Configure interface IP address
+
+### RESTCONF - Device Configuration
+- `/get-hostname` - Get router hostname
+- `/set-hostname` - Set router hostname
+
+### RESTCONF - Routing
+- `/get-routing-table` - Get routing table information
+- `/get-static-routes` - Get static routes
 
 ## Adding New Commands
 
