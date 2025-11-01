@@ -1,7 +1,7 @@
 """Slash command registrations for interface management."""
 from __future__ import annotations
 
-from typing import Callable, Optional, Sequence
+from typing import Callable, List, Optional, Sequence
 
 import discord
 from discord import app_commands
@@ -20,6 +20,41 @@ from utils.embeds import create_error_embed
 ServiceBuilder = Callable[[str, str, str], RestconfService]
 
 
+async def interface_autocomplete(
+    interaction: discord.Interaction,
+    current: str,
+) -> List[app_commands.Choice[str]]:
+    """Autocomplete function to suggest available interfaces."""
+    # Get connection from the cog's connection manager
+    try:
+        # Access the connection manager through the bot
+        from cogs.restconf import RestconfCog
+        cog = interaction.client.get_cog("RestconfCog")
+        if not cog or not hasattr(cog, '_connection_manager'):
+            return []
+        
+        conn = cog._connection_manager.get_connection()
+        if not conn:
+            return []
+        
+        # Build service and fetch interfaces
+        from restconf.client import RestconfClient
+        client = RestconfClient(conn.host, conn.username, conn.password)
+        service = RestconfService(client)
+        
+        interfaces = await service.fetch_interfaces()
+        
+        # Filter interfaces by current input and return up to 25 choices
+        filtered = [
+            app_commands.Choice(name=iface.name, value=iface.name)
+            for iface in interfaces
+            if current.lower() in iface.name.lower()
+        ]
+        return filtered[:25]  # Discord limit
+    except Exception:
+        return []
+
+
 def _build_get_interfaces(service_builder: ServiceBuilder, connection_manager: ConnectionManager) -> app_commands.Command:
     @app_commands.command(name="get-interfaces", description="Get all interfaces from CSR1000v")
     @app_commands.describe(
@@ -35,7 +70,7 @@ def _build_get_interfaces(service_builder: ServiceBuilder, connection_manager: C
     ) -> None:
         await interaction.response.defer(thinking=True)
         
-        # Use stored connection if no parameters provided
+        # Fill missing parameters from stored connection (allow partial overrides)
         if host is None or username is None or password is None:
             conn = connection_manager.get_connection()
             if conn is None:
@@ -47,9 +82,12 @@ def _build_get_interfaces(service_builder: ServiceBuilder, connection_manager: C
                 )
                 await interaction.followup.send(embed=embed, ephemeral=True)
                 return
-            host = conn.host
-            username = conn.username
-            password = conn.password
+            if host is None:
+                host = conn.host
+            if username is None:
+                username = conn.username
+            if password is None:
+                password = conn.password
         
         service = service_builder(host, username, password)
         try:
@@ -70,6 +108,7 @@ def _build_get_interface(service_builder: ServiceBuilder, connection_manager: Co
         username="RESTCONF username (optional if connected)",
         password="RESTCONF password (optional if connected)",
     )
+    @app_commands.autocomplete(interface=interface_autocomplete)
     async def command(
         interaction: discord.Interaction,
         interface: str,
@@ -79,7 +118,7 @@ def _build_get_interface(service_builder: ServiceBuilder, connection_manager: Co
     ) -> None:
         await interaction.response.defer(thinking=True)
         
-        # Use stored connection if no parameters provided
+        # Fill missing parameters from stored connection (allow partial overrides)
         if host is None or username is None or password is None:
             conn = connection_manager.get_connection()
             if conn is None:
@@ -91,9 +130,12 @@ def _build_get_interface(service_builder: ServiceBuilder, connection_manager: Co
                 )
                 await interaction.followup.send(embed=embed, ephemeral=True)
                 return
-            host = conn.host
-            username = conn.username
-            password = conn.password
+            if host is None:
+                host = conn.host
+            if username is None:
+                username = conn.username
+            if password is None:
+                password = conn.password
         
         service = service_builder(host, username, password)
         try:
@@ -121,6 +163,7 @@ def _build_set_interface_description(service_builder: ServiceBuilder, connection
         username="RESTCONF username (optional if connected)",
         password="RESTCONF password (optional if connected)",
     )
+    @app_commands.autocomplete(interface=interface_autocomplete)
     async def command(
         interaction: discord.Interaction,
         interface: str,
@@ -131,7 +174,7 @@ def _build_set_interface_description(service_builder: ServiceBuilder, connection
     ) -> None:
         await interaction.response.defer(thinking=True)
         
-        # Use stored connection if no parameters provided
+        # Fill missing parameters from stored connection (allow partial overrides)
         if host is None or username is None or password is None:
             conn = connection_manager.get_connection()
             if conn is None:
@@ -143,9 +186,12 @@ def _build_set_interface_description(service_builder: ServiceBuilder, connection
                 )
                 await interaction.followup.send(embed=embed, ephemeral=True)
                 return
-            host = conn.host
-            username = conn.username
-            password = conn.password
+            if host is None:
+                host = conn.host
+            if username is None:
+                username = conn.username
+            if password is None:
+                password = conn.password
         
         service = service_builder(host, username, password)
         try:
@@ -169,6 +215,7 @@ def _build_set_interface_state(service_builder: ServiceBuilder, connection_manag
         username="RESTCONF username (optional if connected)",
         password="RESTCONF password (optional if connected)",
     )
+    @app_commands.autocomplete(interface=interface_autocomplete)
     async def command(
         interaction: discord.Interaction,
         interface: str,
@@ -179,7 +226,7 @@ def _build_set_interface_state(service_builder: ServiceBuilder, connection_manag
     ) -> None:
         await interaction.response.defer(thinking=True)
         
-        # Use stored connection if no parameters provided
+        # Fill missing parameters from stored connection (allow partial overrides)
         if host is None or username is None or password is None:
             conn = connection_manager.get_connection()
             if conn is None:
@@ -191,9 +238,12 @@ def _build_set_interface_state(service_builder: ServiceBuilder, connection_manag
                 )
                 await interaction.followup.send(embed=embed, ephemeral=True)
                 return
-            host = conn.host
-            username = conn.username
-            password = conn.password
+            if host is None:
+                host = conn.host
+            if username is None:
+                username = conn.username
+            if password is None:
+                password = conn.password
         
         service = service_builder(host, username, password)
         try:
@@ -219,6 +269,7 @@ def _build_set_interface_ip(service_builder: ServiceBuilder, connection_manager:
         username="RESTCONF username (optional if connected)",
         password="RESTCONF password (optional if connected)",
     )
+    @app_commands.autocomplete(interface=interface_autocomplete)
     async def command(
         interaction: discord.Interaction,
         interface: str,
@@ -230,7 +281,7 @@ def _build_set_interface_ip(service_builder: ServiceBuilder, connection_manager:
     ) -> None:
         await interaction.response.defer(thinking=True)
         
-        # Use stored connection if no parameters provided
+        # Fill missing parameters from stored connection (allow partial overrides)
         if host is None or username is None or password is None:
             conn = connection_manager.get_connection()
             if conn is None:
@@ -242,9 +293,12 @@ def _build_set_interface_ip(service_builder: ServiceBuilder, connection_manager:
                 )
                 await interaction.followup.send(embed=embed, ephemeral=True)
                 return
-            host = conn.host
-            username = conn.username
-            password = conn.password
+            if host is None:
+                host = conn.host
+            if username is None:
+                username = conn.username
+            if password is None:
+                password = conn.password
         
         service = service_builder(host, username, password)
         try:

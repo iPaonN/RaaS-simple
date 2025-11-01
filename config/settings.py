@@ -20,7 +20,7 @@ DEV_GUILD_ID = int(os.getenv('DEV_GUILD_ID', 0)) if os.getenv('DEV_GUILD_ID') el
 DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///data/bot.db')
 
 # Logging
-LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
+LOG_LEVEL = os.getenv('LOG_LEVEL', 'DEBUG')
 
 # Bot Colors (for embeds)
 COLOR_SUCCESS = 0x00ff00
