@@ -30,19 +30,22 @@ async def interface_autocomplete(
         # Access the connection manager through the bot
         from cogs.restconf import RestconfCog
         cog = interaction.client.get_cog("RestconfCog")
-        if not cog or not hasattr(cog, '_connection_manager'):
+        if not cog:
             return []
-        
-        conn = cog._connection_manager.get_connection()
-        if not conn:
+
+        conn_manager = getattr(cog, "connection_manager", None)
+        if conn_manager is None:
             return []
-        
+        connection = conn_manager.get_connection()
+        if not connection:
+            return []
+
         # Build service and fetch interfaces
         from restconf.client import RestconfClient
-        client = RestconfClient(conn.host, conn.username, conn.password)
+        client = RestconfClient(connection.host, connection.username, connection.password)
         service = RestconfService(client)
-        
-        interfaces = await service.fetch_interfaces()
+
+        interfaces = await service.interfaces.fetch_interfaces()
         
         # Filter interfaces by current input and return up to 25 choices
         filtered = [
@@ -91,7 +94,7 @@ def _build_get_interfaces(service_builder: ServiceBuilder, connection_manager: C
         
         service = service_builder(host, username, password)
         try:
-            interfaces = await service.fetch_interfaces()
+            interfaces = await service.interfaces.fetch_interfaces()
         except RestconfError as exc:
             await interaction.followup.send(embed=render_restconf_error(str(exc)), ephemeral=True)
             return
@@ -139,7 +142,7 @@ def _build_get_interface(service_builder: ServiceBuilder, connection_manager: Co
         
         service = service_builder(host, username, password)
         try:
-            model = await service.fetch_interface(interface)
+            model = await service.interfaces.fetch_interface(interface)
         except RestconfNotFoundError:
             await interaction.followup.send(
                 embed=render_restconf_error(f"Interface `{interface}` not found."),
@@ -195,7 +198,7 @@ def _build_set_interface_description(service_builder: ServiceBuilder, connection
         
         service = service_builder(host, username, password)
         try:
-            model = await service.update_interface_description(interface, description)
+            model = await service.interfaces.update_interface_description(interface, description)
         except RestconfError as exc:
             await interaction.followup.send(embed=render_restconf_error(str(exc)), ephemeral=True)
             return
@@ -247,7 +250,7 @@ def _build_set_interface_state(service_builder: ServiceBuilder, connection_manag
         
         service = service_builder(host, username, password)
         try:
-            model = await service.update_interface_state(interface, enabled)
+            model = await service.interfaces.update_interface_state(interface, enabled)
         except RestconfError as exc:
             await interaction.followup.send(embed=render_restconf_error(str(exc)), ephemeral=True)
             return
@@ -302,7 +305,7 @@ def _build_set_interface_ip(service_builder: ServiceBuilder, connection_manager:
         
         service = service_builder(host, username, password)
         try:
-            model = await service.update_interface_ip(interface, ip_address, netmask)
+            model = await service.interfaces.update_interface_ip(interface, ip_address, netmask)
         except RestconfError as exc:
             await interaction.followup.send(embed=render_restconf_error(str(exc)), ephemeral=True)
             return

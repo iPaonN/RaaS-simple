@@ -49,7 +49,7 @@ def _build_get_hostname(service_builder: ServiceBuilder, connection_manager: Con
         
         service = service_builder(host, username, password)
         try:
-            hostname = await service.fetch_hostname()
+            hostname = await service.device.fetch_hostname()
         except RestconfError as exc:
             await interaction.followup.send(embed=render_restconf_error(str(exc)), ephemeral=True)
             return
@@ -93,7 +93,7 @@ def _build_set_hostname(service_builder: ServiceBuilder, connection_manager: Con
         
         service = service_builder(host, username, password)
         try:
-            hostname_model = await service.update_hostname(hostname)
+            hostname_model = await service.device.update_hostname(hostname)
         except RestconfError as exc:
             await interaction.followup.send(embed=render_restconf_error(str(exc)), ephemeral=True)
             return

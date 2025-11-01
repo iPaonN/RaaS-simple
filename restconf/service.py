@@ -1,283 +1,51 @@
 """Domain service implementing high-level RESTCONF operations."""
 from __future__ import annotations
 
-from typing import Dict, List
-
 from restconf.client import RestconfClient
-from restconf.errors import RestconfHTTPError, RestconfNotFoundError
-from restconf.models import (
-    Hostname,
-    Interface,
-    InterfaceAddress,
-    RoutingTable,
-    StaticRoute,
-)
-from utils.logger import get_logger
-
-_logger = get_logger(__name__)
+from restconf.models import Hostname, Interface, RoutingTable, StaticRoute
+from restconf.services import DeviceService, InterfaceService, RoutingService
 
 
 class RestconfService:
-    """Business logic for RESTCONF interactions."""
+    """Facade that coordinates smaller RESTCONF services."""
 
     def __init__(self, client: RestconfClient) -> None:
         self._client = client
+        self.interfaces = InterfaceService(client)
+        self.device = DeviceService(client)
+        self.routing = RoutingService(client)
+
+    @property
+    def client(self) -> RestconfClient:
+        """Expose underlying RESTCONF client."""
+        return self._client
 
     # ------------------------------------------------------------------
-    # Interface operations
+    # Delegating helpers for backwards compatibility
     # ------------------------------------------------------------------
-    async def fetch_interfaces(self) -> List[Interface]:
-        # Try Cisco IOS-XE operational model first (most common for CSR/ISR)
-        try:
-            payload = await self._client.get("Cisco-IOS-XE-interfaces-oper:interfaces")
-            interfaces_data = payload.get("Cisco-IOS-XE-interfaces-oper:interfaces", {})
-            if isinstance(interfaces_data, dict):
-                interfaces = interfaces_data.get("interface", [])
-                if interfaces:
-                    _logger.info("Found %d interface(s)", len(interfaces))
-                    return [self._parse_cisco_xe_interface(raw) for raw in interfaces]
-        except Exception as e:
-            _logger.warning("Cisco IOS-XE model failed, trying IETF: %s", e)
-        
-        # Fallback to standard IETF model
-        payload = await self._client.get("ietf-interfaces:interfaces")
-        interfaces_data = payload.get("ietf-interfaces:interfaces", {})
-        if isinstance(interfaces_data, dict):
-            interfaces = interfaces_data.get("interface", [])
-        else:
-            interfaces = payload.get("interface", [])
-        
-        _logger.info("Found %d interface(s)", len(interfaces))
-        return [self._parse_interface(raw) for raw in interfaces]
+    async def fetch_interfaces(self) -> list[Interface]:
+        return await self.interfaces.fetch_interfaces()
 
     async def fetch_interface(self, name: str) -> Interface:
-        # Try Cisco XE operational model first
-        try:
-            payload = await self._client.get(f"Cisco-IOS-XE-interfaces-oper:interfaces/interface={name}")
-            interface_payload = payload.get("Cisco-IOS-XE-interfaces-oper:interface")
-            if interface_payload:
-                return self._parse_cisco_xe_interface(interface_payload)
-        except Exception:
-            pass
-        
-        # Fallback to IETF model
-        try:
-            payload = await self._client.get(f"ietf-interfaces:interfaces/interface={name}")
-        except RestconfNotFoundError as exc:
-            raise RestconfNotFoundError(status=exc.status, message=f"Interface '{name}' not found", details=exc.details)
-
-        interface_payload = payload.get("ietf-interfaces:interface")
-        if not interface_payload:
-            raise RestconfNotFoundError(status=404, message=f"Interface '{name}' not found")
-        return self._parse_interface(interface_payload)
+        return await self.interfaces.fetch_interface(name)
 
     async def update_interface_description(self, name: str, description: str) -> Interface:
-        # Use Cisco IOS-XE native model for configuration
-        iface_type = self._get_interface_type(name)
-        iface_number = self._get_interface_number(name)
-        
-        await self._client.patch(
-            f"Cisco-IOS-XE-native:native/interface/{iface_type}={iface_number}",
-            data={
-                f"Cisco-IOS-XE-native:{iface_type}": {
-                    "name": iface_number,
-                    "description": description,
-                }
-            },
-        )
-        _logger.info("Updated description on interface %s", name)
-        return await self.fetch_interface(name)
+        return await self.interfaces.update_interface_description(name, description)
 
     async def update_interface_state(self, name: str, enabled: bool) -> Interface:
-        # Use Cisco IOS-XE native model - shutdown is the opposite of enabled
-        iface_type = self._get_interface_type(name)
-        iface_number = self._get_interface_number(name)
-        
-        data = {
-            f"Cisco-IOS-XE-native:{iface_type}": {
-                "name": iface_number,
-            }
-        }
-        # In Cisco IOS, "shutdown" disables the interface (absence of shutdown = enabled)
-        if not enabled:
-            data[f"Cisco-IOS-XE-native:{iface_type}"]["shutdown"] = [None]
-        
-        await self._client.patch(
-            f"Cisco-IOS-XE-native:native/interface/{iface_type}={iface_number}",
-            data=data,
-        )
-        _logger.info("Set interface %s state to %s", name, enabled)
-        return await self.fetch_interface(name)
+        return await self.interfaces.update_interface_state(name, enabled)
 
     async def update_interface_ip(self, name: str, ip: str, netmask: str) -> Interface:
-        # Use Cisco IOS-XE native model for IP configuration
-        iface_type = self._get_interface_type(name)
-        iface_number = self._get_interface_number(name)
-        
-        await self._client.patch(
-            f"Cisco-IOS-XE-native:native/interface/{iface_type}={iface_number}",
-            data={
-                f"Cisco-IOS-XE-native:{iface_type}": {
-                    "name": iface_number,
-                    "ip": {
-                        "address": {
-                            "primary": {
-                                "address": ip,
-                                "mask": netmask,
-                            }
-                        }
-                    },
-                }
-            },
-        )
-        _logger.info("Updated IP %s/%s on interface %s", ip, netmask, name)
-        return await self.fetch_interface(name)
+        return await self.interfaces.update_interface_ip(name, ip, netmask)
 
-    # ------------------------------------------------------------------
-    # Hostname operations
-    # ------------------------------------------------------------------
     async def fetch_hostname(self) -> Hostname:
-        payload = await self._client.get("Cisco-IOS-XE-native:native/hostname")
-        value = payload.get("Cisco-IOS-XE-native:hostname")
-        if not value:
-            raise RestconfHTTPError(status=500, message="Hostname missing in payload")
-        return Hostname(value=value)
+        return await self.device.fetch_hostname()
 
     async def update_hostname(self, hostname: str) -> Hostname:
-        await self._client.patch(
-            "Cisco-IOS-XE-native:native/hostname",
-            data={"Cisco-IOS-XE-native:hostname": hostname},
-        )
-        _logger.info("Updated hostname to %s", hostname)
-        return Hostname(value=hostname)
+        return await self.device.update_hostname(hostname)
 
-    # ------------------------------------------------------------------
-    # Routing operations
-    # ------------------------------------------------------------------
     async def fetch_routing_table(self) -> RoutingTable:
-        payload = await self._client.get("ietf-routing:routing")
-        routes_payload = payload.get("ietf-routing:routing", {})
-        static_routes = self._extract_static_routes(routes_payload)
-        return RoutingTable.from_routes(static_routes)
+        return await self.routing.fetch_routing_table()
 
-    async def fetch_static_routes(self) -> List[StaticRoute]:
-        payload = await self._client.get("Cisco-IOS-XE-native:native/ip/route")
-        routes_payload = payload.get("Cisco-IOS-XE-native:route", [])
-        return self._parse_static_routes(routes_payload)
-
-    # ------------------------------------------------------------------
-    # Parsing helpers
-    # ------------------------------------------------------------------
-    def _get_interface_type(self, interface_name: str) -> str:
-        """Extract interface type from full interface name.
-        
-        Examples:
-            GigabitEthernet1 -> GigabitEthernet
-            Loopback0 -> Loopback
-            TenGigabitEthernet1/0/1 -> TenGigabitEthernet
-        """
-        import re
-        # Match letters at the start of the interface name
-        match = re.match(r'^([A-Za-z-]+)', interface_name)
-        if match:
-            return match.group(1)
-        return "GigabitEthernet"  # Default fallback
-    
-    def _get_interface_number(self, interface_name: str) -> str:
-        """Extract interface number from full interface name.
-        
-        Examples:
-            GigabitEthernet1 -> 1
-            Loopback0 -> 0
-            TenGigabitEthernet1/0/1 -> 1/0/1
-        """
-        import re
-        # Match everything after the interface type letters
-        match = re.match(r'^[A-Za-z-]+(.+)', interface_name)
-        if match:
-            return match.group(1)
-        return "0"  # Default fallback
-    
-    def _parse_cisco_xe_interface(self, payload: Dict[str, object]) -> Interface:
-        """Parse Cisco IOS-XE operational model interface."""
-        name = str(payload.get("name", "unknown"))
-        enabled = payload.get("admin-status") == "if-state-up" if "admin-status" in payload else bool(payload.get("enabled", False))
-        interface_type = str(payload.get("interface-type", "unknown"))
-        description = str(payload.get("description")) if payload.get("description") else None
-        
-        # IPv4 addresses
-        addresses = []
-        ipv4_data = payload.get("ipv4", {}) if isinstance(payload.get("ipv4"), dict) else {}
-        ipv4_address = ipv4_data.get("address")
-        ipv4_netmask = ipv4_data.get("netmask")
-        
-        if ipv4_address and ipv4_netmask:
-            addresses.append(InterfaceAddress(ip=str(ipv4_address), netmask=str(ipv4_netmask)))
-        
-        return Interface(
-            name=name,
-            enabled=enabled,
-            type=interface_type,
-            description=description,
-            ipv4_addresses=addresses,
-        )
-    
-    def _parse_interface(self, payload: Dict[str, object]) -> Interface:
-        addresses_payload = (
-            (
-                payload.get("ietf-ip:ipv4", {})
-                if isinstance(payload.get("ietf-ip:ipv4"), dict)
-                else {}
-            )
-            .get("address", [])
-        )
-
-        addresses = [
-            InterfaceAddress(
-                ip=str(entry.get("ip", "")),
-                netmask=str(entry.get("netmask", "")),
-            )
-            for entry in addresses_payload
-            if isinstance(entry, dict)
-        ]
-
-        return Interface(
-            name=str(payload.get("name", "unknown")),
-            enabled=bool(payload.get("enabled", False)),
-            type=str(payload.get("type", "unknown")),
-            description=str(payload.get("description")) if payload.get("description") else None,
-            ipv4_addresses=addresses,
-        )
-
-    def _extract_static_routes(self, payload: Dict[str, object]) -> List[StaticRoute]:
-        routes: List[StaticRoute] = []
-        static = payload.get("ietf-routing:static")
-        if isinstance(static, dict):
-            ribs = static.get("route")
-            if isinstance(ribs, list):
-                for route_entry in ribs:
-                    if not isinstance(route_entry, dict):
-                        continue
-                    destination = route_entry.get("destination-prefix", "unknown")
-                    next_hops = route_entry.get("next-hop", {})
-                    next_hop_address = "unknown"
-                    if isinstance(next_hops, dict):
-                        ipv4_next = next_hops.get("outgoing-interface") or next_hops.get("next-hop-address")
-                        if isinstance(ipv4_next, str):
-                            next_hop_address = ipv4_next
-                    routes.append(StaticRoute(prefix=str(destination), next_hop=str(next_hop_address)))
-        return routes
-
-    def _parse_static_routes(self, payload: object) -> List[StaticRoute]:
-        if isinstance(payload, dict):
-            payload = [payload]
-        if not isinstance(payload, list):
-            return []
-        routes: List[StaticRoute] = []
-        for entry in payload:
-            if not isinstance(entry, dict):
-                continue
-            prefix = entry.get("prefix") or entry.get("ip-prefix") or "unknown"
-            next_hop = entry.get("next-hop") or entry.get("fwd") or "unknown"
-            routes.append(StaticRoute(prefix=str(prefix), next_hop=str(next_hop)))
-        return routes
+    async def fetch_static_routes(self) -> list[StaticRoute]:
+        return await self.routing.fetch_static_routes()
