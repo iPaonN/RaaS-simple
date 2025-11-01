@@ -14,6 +14,7 @@ jobs:
     runs-on: self-hosted
     # Only run if CI workflow succeeded or if manually pushed
     if: ${{ github.event_name == 'push' || github.event.workflow_run.conclusion == 'success' }}
+    environment: secrets
     
     steps:
       - name: Log in to Docker Hub
