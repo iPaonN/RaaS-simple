@@ -1,0 +1,39 @@
+name: Deploy Discord Bot (Self-Hosted Ubuntu)
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Update environment file
+        run: |
+          echo "DISCORD_TOKEN=${{ secrets.DISCORD_TOKEN }}" > .env
+          echo "DISCORD_GUILD_ID=${{ secrets.DISCORD_GUILD_ID }}" >> .env
+          echo "PREFIX=!" >> .env
+          echo "LOG_LEVEL=INFO" >> .env
+
+      - name: Restart bot service
+        run: |
+          sudo systemctl restart discord-bot.service
+          sudo systemctl status discord-bot.service --no-pager
+
+      - name: Show latest logs
+        run: sudo journalctl -u discord-bot.service -n 40 --no-pager
