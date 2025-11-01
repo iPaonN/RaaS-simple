@@ -20,6 +20,7 @@ from restconf.presenters import (
     render_restconf_error,
 )
 from restconf.service import RestconfService
+from restconf.services.connection import ConnectionService
 
 ServiceBuilder = Callable[[str, str, str], RestconfService]
 
@@ -31,21 +32,22 @@ async def interface_autocomplete(
     """Autocomplete function to suggest available interfaces."""
     # Get connection from the cog's connection manager
     try:
-        # Access the connection manager through the bot
         from cogs.restconf import RestconfCog
+
         cog = interaction.client.get_cog("RestconfCog")
         if not cog:
             return []
 
-        conn_manager = getattr(cog, "connection_manager", None)
-        if conn_manager is None:
+        connection_service = getattr(cog, "connection_service", None)
+        if not isinstance(connection_service, ConnectionService):
             return []
-        connection = conn_manager.get_connection()
+
+        connection = connection_service.get_connection()
         if not connection:
             return []
 
-        # Build service and fetch interfaces
         from restconf.client import RestconfClient
+
         client = RestconfClient(connection.host, connection.username, connection.password)
         service = RestconfService(client)
 
