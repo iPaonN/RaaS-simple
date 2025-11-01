@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  discord-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: femrouter-bot:latest
+    container_name: femrouter-bot
+    restart: unless-stopped
+    
+    # Pass environment variables from .env file
+    env_file:
+      - .env
+    
+    # Alternative: specify environment variables directly
+    # environment:
+    #   - DISCORD_TOKEN=${DISCORD_TOKEN}
+    #   - DEV_GUILD_ID=${DEV_GUILD_ID}
+    #   - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    
+    # Mount logs directory to persist logs
+    volumes:
+      - ./logs:/app/logs
+    
+    # Health check (optional)
+    # healthcheck:
+    #   test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+    #   interval: 30s
+    #   timeout: 10s
+    #   retries: 3
+    
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
