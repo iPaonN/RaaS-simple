@@ -1,71 +1,53 @@
-name: Deploy Discord Bot (Self-Hosted Ubuntu)
+name: Deploy Discord Bot (Docker)
 
 on:
   push:
+    branches: [main]
+  workflow_run:
+    workflows: ["CI - Build and Push Docker Image"]
+    types:
+      - completed
     branches: [main]
 
 jobs:
   deploy:
     runs-on: self-hosted
-    env:
-      DEPLOY_DIR: /opt/femrouter
+    # Only run if CI workflow succeeded or if manually pushed
+    if: ${{ github.event_name == 'push' || github.event.workflow_run.conclusion == 'success' }}
+    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Sync code to deployment directory
+      - name: Log in to Docker Hub
         run: |
-          sudo mkdir -p "$DEPLOY_DIR"
-          sudo rsync -a --delete --exclude '.venv' ./ "$DEPLOY_DIR"/
-          sudo chown -R $USER:$USER "$DEPLOY_DIR"
+          echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login docker.io -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
 
-      - name: Install dependencies
+      - name: Pull latest image
         run: |
-          rm -rf "$DEPLOY_DIR/.venv"
-          python3 -m venv "$DEPLOY_DIR/.venv"
-          source "$DEPLOY_DIR/.venv/bin/activate"
-          pip install --upgrade pip wheel
-          pip install -r "$DEPLOY_DIR/requirements.txt"
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/femrouter:latest
 
-      - name: Ensure systemd service exists
+      - name: Stop and remove old container
         run: |
-          sudo tee /etc/systemd/system/discord-bot.service > /dev/null <<EOF
-          [Unit]
-          Description=FemRouter Discord Bot
-          After=network.target
+          docker stop femrouter-bot || true
+          docker rm femrouter-bot || true
 
-          [Service]
-          Type=simple
-          WorkingDirectory=$DEPLOY_DIR
-          EnvironmentFile=$DEPLOY_DIR/.env
-          ExecStart=$DEPLOY_DIR/.venv/bin/python $DEPLOY_DIR/bot.py
-          Restart=always
-          RestartSec=5
-
-          [Install]
-          WantedBy=multi-user.target
-          EOF
-          sudo systemctl daemon-reload
-          sudo systemctl enable discord-bot.service
-
-      - name: Update environment file
+      - name: Run new container
         run: |
-          cat <<EOF > "$DEPLOY_DIR/.env"
-          DISCORD_TOKEN=${{ secrets.DISCORD_TOKEN }}
-          DEV_GUILD_ID=${{ secrets.DEV_GUILD_ID }}
-          PREFIX=!
-          LOG_LEVEL=INFO
-          EOF
+          docker run -d \
+            --name femrouter-bot \
+            --restart unless-stopped \
+            -e DISCORD_TOKEN="${{ secrets.DISCORD_TOKEN }}" \
+            -e DEV_GUILD_ID="${{ secrets.DEV_GUILD_ID }}" \
+            -e PREFIX="!" \
+            -e LOG_LEVEL="INFO" \
+            -v /opt/femrouter/logs:/app/logs \
+            ${{ secrets.DOCKERHUB_USERNAME }}/femrouter:latest
 
-      - name: Restart bot service
+      - name: Check container status
         run: |
-          sudo systemctl restart discord-bot.service
-          sudo systemctl status discord-bot.service --no-pager
+          sleep 5
+          docker ps -a | grep femrouter-bot
+          echo "--- Container Logs ---"
+          docker logs femrouter-bot --tail 50
 
-      - name: Show latest logs
-        run: sudo journalctl -u discord-bot.service -n 40 --no-pager
+      - name: Clean up old images
+        run: |
+          docker image prune -f

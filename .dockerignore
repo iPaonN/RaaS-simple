@@ -1,0 +1,49 @@
+# Git
+.git
+.gitignore
+.github
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs (will be created in container)
+logs/
+*.log
+
+# Environment files (should be passed at runtime)
+.env
+.env.local
+
+# Documentation
+docs/
+README.md
+
+# Tests
+tests/
+*.pytest_cache/
+.coverage
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Makefile
+Makefile
