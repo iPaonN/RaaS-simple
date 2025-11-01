@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Dict, List
 
-from restconf.errors import RestconfNotFoundError
+from restconf.errors import RestconfHTTPError, RestconfNotFoundError
 from restconf.models import Interface, InterfaceAddress
 from utils.logger import get_logger
 
@@ -103,22 +103,49 @@ class InterfaceService(RestconfDomainService):
         iface_type = self._get_interface_type(name)
         iface_number = self._get_interface_number(name)
 
-        await self.client.patch(
-            f"Cisco-IOS-XE-native:native/interface/{iface_type}={iface_number}",
-            data={
-                f"Cisco-IOS-XE-native:{iface_type}": {
-                    "name": iface_number,
-                    "ip": {
-                        "address": {
-                            "primary": {
-                                "address": ip,
-                                "mask": netmask,
+        # Skip RESTCONF update if the running configuration already matches the request.
+        try:
+            existing = await self.fetch_interface(name)
+        except RestconfNotFoundError:
+            existing = None
+        else:
+            for address in existing.ipv4_addresses:
+                if address.ip == ip and address.netmask == netmask:
+                    _logger.info(
+                        "Interface %s already configured with %s/%s; skipping RESTCONF update",
+                        name,
+                        ip,
+                        netmask,
+                    )
+                    return existing
+
+        try:
+            await self.client.patch(
+                f"Cisco-IOS-XE-native:native/interface/{iface_type}={iface_number}",
+                data={
+                    f"Cisco-IOS-XE-native:{iface_type}": {
+                        "name": iface_number,
+                        "ip": {
+                            "address": {
+                                "primary": {
+                                    "address": ip,
+                                    "mask": netmask,
+                                }
                             }
-                        }
-                    },
-                }
-            },
-        )
+                        },
+                    }
+                },
+            )
+        except RestconfHTTPError as exc:
+            details = exc.details or ""
+            if "inconsistent value" in (details or exc.message).lower():
+                hint = (
+                    "Device refused the requested IP configuration. Ensure the interface is not managed "
+                    "by another feature (DHCP, VRF, templates) and clear conflicting settings before retrying."
+                )
+                details = f"{details} {hint}".strip()
+            raise RestconfHTTPError(status=exc.status, message=exc.message, details=details) from exc
+
         _logger.info("Updated IP %s/%s on interface %s", ip, netmask, name)
         return await self.fetch_interface(name)
 
