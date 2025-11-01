@@ -18,10 +18,31 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m venv .venv
+          python3 -m venv .venv
           source .venv/bin/activate
           pip install --upgrade pip wheel
           pip install -r requirements.txt
+
+      - name: Ensure systemd service exists
+        run: |
+          sudo tee /etc/systemd/system/discord-bot.service > /dev/null <<'EOF'
+          [Unit]
+          Description=FemRouter Discord Bot
+          After=network.target
+
+          [Service]
+          Type=simple
+          WorkingDirectory=${{ github.workspace }}
+          EnvironmentFile=${{ github.workspace }}/.env
+          ExecStart=${{ github.workspace }}/.venv/bin/python bot.py
+          Restart=always
+          RestartSec=5
+
+          [Install]
+          WantedBy=multi-user.target
+          EOF
+          sudo systemctl daemon-reload
+          sudo systemctl enable discord-bot.service
 
       - name: Update environment file
         run: |
