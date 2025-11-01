@@ -5,10 +5,12 @@ import discord
 from discord.ext import commands
 
 from restconf.client import RestconfClient
+from restconf.connection_manager import ConnectionManager
 from restconf.command_groups import (
     DeviceCommandGroup,
     InterfaceCommandGroup,
     RoutingCommandGroup,
+    ConnectionCommandGroup,
 )
 from restconf.service import RestconfService
 from utils.logger import get_logger
@@ -22,6 +24,7 @@ class RestconfCog(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         self._groups = []
+        self._connection_manager = ConnectionManager()
 
     def _service_builder(self, host: str, username: str, password: str) -> RestconfService:
         client = RestconfClient(host, username, password)
@@ -29,9 +32,10 @@ class RestconfCog(commands.Cog):
 
     async def cog_load(self) -> None:
         group_instances = [
-            InterfaceCommandGroup(self._service_builder),
-            DeviceCommandGroup(self._service_builder),
-            RoutingCommandGroup(self._service_builder),
+            ConnectionCommandGroup(self._connection_manager),
+            InterfaceCommandGroup(self._service_builder, self._connection_manager),
+            DeviceCommandGroup(self._service_builder, self._connection_manager),
+            RoutingCommandGroup(self._service_builder, self._connection_manager),
         ]
         for group in group_instances:
             group.register(self.bot.tree)
@@ -40,7 +44,10 @@ class RestconfCog(commands.Cog):
 
     async def cog_unload(self) -> None:
         for group in self._groups:
-            group.unregister(self.bot.tree)
+            try:
+                group.unregister(self.bot.tree)
+            except Exception as e:
+                _logger.warning("Failed to unregister command group: %s", e)
         _logger.info("Unregistered RESTCONF command groups")
 
 
