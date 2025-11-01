@@ -24,7 +24,7 @@ def render_interface_list(host: str, interfaces: Sequence[Interface]) -> discord
         title=f"📡 Interfaces on {host}",
         description=f"Found {len(interfaces)} interface(s).",
     )
-    for interface in interfaces[:10]:
+    for interface in interfaces:
         value_lines = [f"Type: {interface.type}"]
         if interface.ipv4_addresses:
             ips = ", ".join(f"{addr.ip}/{addr.netmask}" for addr in interface.ipv4_addresses)
@@ -34,8 +34,6 @@ def render_interface_list(host: str, interfaces: Sequence[Interface]) -> discord
             value="\n".join(value_lines),
             inline=False,
         )
-    if len(interfaces) > 10:
-        embed.set_footer(text=f"Showing 10 of {len(interfaces)} interfaces")
     return embed
 
 

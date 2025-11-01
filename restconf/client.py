@@ -56,6 +56,7 @@ class RestconfClient:
         data: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Execute an HTTP request."""
+        _logger.debug("RESTCONF request -> method=%s endpoint=%s data=%s", method, endpoint, data)
         try:
             async with self._client_factory() as client:
                 response = await client.request(method, endpoint, json=data)

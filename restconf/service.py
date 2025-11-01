@@ -27,13 +27,40 @@ class RestconfService:
     # Interface operations
     # ------------------------------------------------------------------
     async def fetch_interfaces(self) -> List[Interface]:
+        # Try Cisco IOS-XE operational model first (most common for CSR/ISR)
+        try:
+            payload = await self._client.get("Cisco-IOS-XE-interfaces-oper:interfaces")
+            interfaces_data = payload.get("Cisco-IOS-XE-interfaces-oper:interfaces", {})
+            if isinstance(interfaces_data, dict):
+                interfaces = interfaces_data.get("interface", [])
+                if interfaces:
+                    _logger.info("Found %d interface(s)", len(interfaces))
+                    return [self._parse_cisco_xe_interface(raw) for raw in interfaces]
+        except Exception as e:
+            _logger.warning("Cisco IOS-XE model failed, trying IETF: %s", e)
+        
+        # Fallback to standard IETF model
         payload = await self._client.get("ietf-interfaces:interfaces")
-        interfaces = (
-            payload.get("ietf-interfaces:interfaces", {}).get("interface", [])
-        )
+        interfaces_data = payload.get("ietf-interfaces:interfaces", {})
+        if isinstance(interfaces_data, dict):
+            interfaces = interfaces_data.get("interface", [])
+        else:
+            interfaces = payload.get("interface", [])
+        
+        _logger.info("Found %d interface(s)", len(interfaces))
         return [self._parse_interface(raw) for raw in interfaces]
 
     async def fetch_interface(self, name: str) -> Interface:
+        # Try Cisco XE operational model first
+        try:
+            payload = await self._client.get(f"Cisco-IOS-XE-interfaces-oper:interfaces/interface={name}")
+            interface_payload = payload.get("Cisco-IOS-XE-interfaces-oper:interface")
+            if interface_payload:
+                return self._parse_cisco_xe_interface(interface_payload)
+        except Exception:
+            pass
+        
+        # Fallback to IETF model
         try:
             payload = await self._client.get(f"ietf-interfaces:interfaces/interface={name}")
         except RestconfNotFoundError as exc:
@@ -45,13 +72,16 @@ class RestconfService:
         return self._parse_interface(interface_payload)
 
     async def update_interface_description(self, name: str, description: str) -> Interface:
+        # Use Cisco IOS-XE native model for configuration
+        iface_type = self._get_interface_type(name)
+        iface_number = self._get_interface_number(name)
+        
         await self._client.patch(
-            f"ietf-interfaces:interfaces/interface={name}",
+            f"Cisco-IOS-XE-native:native/interface/{iface_type}={iface_number}",
             data={
-                "ietf-interfaces:interface": {
-                    "name": name,
+                f"Cisco-IOS-XE-native:{iface_type}": {
+                    "name": iface_number,
                     "description": description,
-                    "type": "iana-if-type:ethernetCsmacd",
                 }
             },
         )
@@ -59,33 +89,43 @@ class RestconfService:
         return await self.fetch_interface(name)
 
     async def update_interface_state(self, name: str, enabled: bool) -> Interface:
+        # Use Cisco IOS-XE native model - shutdown is the opposite of enabled
+        iface_type = self._get_interface_type(name)
+        iface_number = self._get_interface_number(name)
+        
+        data = {
+            f"Cisco-IOS-XE-native:{iface_type}": {
+                "name": iface_number,
+            }
+        }
+        # In Cisco IOS, "shutdown" disables the interface (absence of shutdown = enabled)
+        if not enabled:
+            data[f"Cisco-IOS-XE-native:{iface_type}"]["shutdown"] = [None]
+        
         await self._client.patch(
-            f"ietf-interfaces:interfaces/interface={name}",
-            data={
-                "ietf-interfaces:interface": {
-                    "name": name,
-                    "enabled": enabled,
-                    "type": "iana-if-type:ethernetCsmacd",
-                }
-            },
+            f"Cisco-IOS-XE-native:native/interface/{iface_type}={iface_number}",
+            data=data,
         )
         _logger.info("Set interface %s state to %s", name, enabled)
         return await self.fetch_interface(name)
 
     async def update_interface_ip(self, name: str, ip: str, netmask: str) -> Interface:
+        # Use Cisco IOS-XE native model for IP configuration
+        iface_type = self._get_interface_type(name)
+        iface_number = self._get_interface_number(name)
+        
         await self._client.patch(
-            f"ietf-interfaces:interfaces/interface={name}",
+            f"Cisco-IOS-XE-native:native/interface/{iface_type}={iface_number}",
             data={
-                "ietf-interfaces:interface": {
-                    "name": name,
-                    "type": "iana-if-type:ethernetCsmacd",
-                    "ietf-ip:ipv4": {
-                        "address": [
-                            {
-                                "ip": ip,
-                                "netmask": netmask,
+                f"Cisco-IOS-XE-native:{iface_type}": {
+                    "name": iface_number,
+                    "ip": {
+                        "address": {
+                            "primary": {
+                                "address": ip,
+                                "mask": netmask,
                             }
-                        ]
+                        }
                     },
                 }
             },
@@ -128,6 +168,60 @@ class RestconfService:
     # ------------------------------------------------------------------
     # Parsing helpers
     # ------------------------------------------------------------------
+    def _get_interface_type(self, interface_name: str) -> str:
+        """Extract interface type from full interface name.
+        
+        Examples:
+            GigabitEthernet1 -> GigabitEthernet
+            Loopback0 -> Loopback
+            TenGigabitEthernet1/0/1 -> TenGigabitEthernet
+        """
+        import re
+        # Match letters at the start of the interface name
+        match = re.match(r'^([A-Za-z-]+)', interface_name)
+        if match:
+            return match.group(1)
+        return "GigabitEthernet"  # Default fallback
+    
+    def _get_interface_number(self, interface_name: str) -> str:
+        """Extract interface number from full interface name.
+        
+        Examples:
+            GigabitEthernet1 -> 1
+            Loopback0 -> 0
+            TenGigabitEthernet1/0/1 -> 1/0/1
+        """
+        import re
+        # Match everything after the interface type letters
+        match = re.match(r'^[A-Za-z-]+(.+)', interface_name)
+        if match:
+            return match.group(1)
+        return "0"  # Default fallback
+    
+    def _parse_cisco_xe_interface(self, payload: Dict[str, object]) -> Interface:
+        """Parse Cisco IOS-XE operational model interface."""
+        name = str(payload.get("name", "unknown"))
+        enabled = payload.get("admin-status") == "if-state-up" if "admin-status" in payload else bool(payload.get("enabled", False))
+        interface_type = str(payload.get("interface-type", "unknown"))
+        description = str(payload.get("description")) if payload.get("description") else None
+        
+        # IPv4 addresses
+        addresses = []
+        ipv4_data = payload.get("ipv4", {}) if isinstance(payload.get("ipv4"), dict) else {}
+        ipv4_address = ipv4_data.get("address")
+        ipv4_netmask = ipv4_data.get("netmask")
+        
+        if ipv4_address and ipv4_netmask:
+            addresses.append(InterfaceAddress(ip=str(ipv4_address), netmask=str(ipv4_netmask)))
+        
+        return Interface(
+            name=name,
+            enabled=enabled,
+            type=interface_type,
+            description=description,
+            ipv4_addresses=addresses,
+        )
+    
     def _parse_interface(self, payload: Dict[str, object]) -> Interface:
         addresses_payload = (
             (
