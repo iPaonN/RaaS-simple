@@ -24,6 +24,16 @@ jobs:
         run: |
           docker pull ${{ secrets.DOCKERHUB_USERNAME }}/femrouter:latest
 
+      - name: Create/Update .env file
+        run: |
+          mkdir -p /opt/femrouter
+          cat > /opt/femrouter/.env << EOF
+          DISCORD_TOKEN=${{ secrets.DISCORD_TOKEN }}
+          DEV_GUILD_ID=${{ secrets.DEV_GUILD_ID }}
+          PREFIX=!
+          LOG_LEVEL=INFO
+          EOF
+
       - name: Stop and remove old container
         run: |
           docker stop femrouter-bot || true
@@ -34,10 +44,7 @@ jobs:
           docker run -d \
             --name femrouter-bot \
             --restart unless-stopped \
-            -e DISCORD_TOKEN="${{ secrets.DISCORD_TOKEN }}" \
-            -e DEV_GUILD_ID="${{ secrets.DEV_GUILD_ID }}" \
-            -e PREFIX="!" \
-            -e LOG_LEVEL="INFO" \
+            --env-file /opt/femrouter/.env \
             -v /opt/femrouter/logs:/app/logs \
             ${{ secrets.DOCKERHUB_USERNAME }}/femrouter:latest
 
