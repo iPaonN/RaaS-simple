@@ -4,10 +4,12 @@ from .interface import InterfaceCommandGroup
 from .device import DeviceCommandGroup
 from .routing import RoutingCommandGroup
 from .connection import ConnectionCommandGroup
+from .config import ConfigCommandGroup
 
 __all__ = [
     "InterfaceCommandGroup",
     "DeviceCommandGroup",
     "RoutingCommandGroup",
     "ConnectionCommandGroup",
+    "ConfigCommandGroup",
 ]

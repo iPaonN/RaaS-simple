@@ -9,6 +9,7 @@ from restconf.command_groups import (
     InterfaceCommandGroup,
     RoutingCommandGroup,
     ConnectionCommandGroup,
+    ConfigCommandGroup,
 )
 from restconf.client import RestconfClient
 from restconf.connection_manager import ConnectionManager
@@ -48,6 +49,7 @@ class RestconfCog(commands.Cog):
             InterfaceCommandGroup(self._service_builder, self._connection_manager),
             DeviceCommandGroup(self._service_builder, self._connection_manager),
             RoutingCommandGroup(self._service_builder, self._connection_manager),
+            ConfigCommandGroup(self._connection_manager),
         ]
         for group in group_instances:
             group.register(self.bot.tree)
