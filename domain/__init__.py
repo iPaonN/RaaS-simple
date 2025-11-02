@@ -1,0 +1,1 @@
+"""Domain layer aggregating entities, repositories, and services."""
