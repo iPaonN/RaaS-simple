@@ -1,6 +1,6 @@
-# Discord Bot Template
+# Femrouter Discord Bot
 
-A modern Discord bot template with slash commands, built using discord.py 2.0+
+A modular Discord automation platform for router management, built with `discord.py 2.x` and structured around clean architecture layers.
 
 ## Features
 
@@ -10,10 +10,11 @@ A modern Discord bot template with slash commands, built using discord.py 2.0+
 - ⚙️ Environment-based configuration
 - 📝 Logging system
 - 🔒 Permission checks
-- 🎮 Fun commands
-- ⚖️ Moderation tools
-- 📊 Server/user info commands
+- 🧱 Layered architecture (core/domain/application/infrastructure)
+- 👷 Dual entrypoints (`bot.py` for Discord, `worker.py` for background jobs)
 - 🌐 RESTCONF API integration for Cisco CSR1000v
+- 🎮 Fun commands & ⚖️ moderation tools
+- 📊 Server/user info commands
 
 ## Quick Start
 
@@ -26,7 +27,7 @@ A modern Discord bot template with slash commands, built using discord.py 2.0+
 
 ```bash
 # Clone or download this repository
-cd discord-bot
+cd femrouter
 
 # Create virtual environment
 python -m venv .venv
@@ -61,30 +62,24 @@ python bot.py
 ## Project Structure
 
 ```
-discord-bot/
-├── bot.py                  # Main entry point
-├── config/                 # Configuration
-│   ├── settings.py         # Environment variables
-│   └── constants.py        # Bot constants
-├── cogs/                   # Command modules
-│   ├── moderation.py       # Moderation commands
-│   ├── fun.py              # Fun commands
-│   ├── utility.py          # Utility commands
-│   ├── interface_commands.py  # Interface management (RESTCONF)
-│   ├── device_commands.py     # Device configuration (RESTCONF)
-│   └── routing_commands.py    # Routing management (RESTCONF)
-├── utils/                  # Helper functions
-│   ├── embeds.py           # Embed builders
-│   ├── checks.py           # Permission checks
-│   ├── restconf_client.py  # RESTCONF HTTP client
-│   └── restconf_service.py # RESTCONF business logic
-├── docs/                   # Documentation
-│   └── RESTCONF_ARCHITECTURE.md  # Architecture guide
-├── logs/                   # Log files (auto-created)
-├── .env.example            # Example environment file
-├── .gitignore              # Git ignore file
-└── requirements.txt        # Python dependencies
+femrouter/
+├── bot.py                       # Discord bot entrypoint
+├── worker.py                    # Background worker entrypoint
+├── core/                        # Shared primitives (bot, db/queue abstractions)
+├── domain/                      # Entities, repositories, services
+├── application/                 # DTOs, use-cases, handlers
+├── infrastructure/              # MongoDB & RabbitMQ adapters
+├── cogs/                        # Discord command groups (incl. RESTCONF)
+├── restconf/                    # Existing RESTCONF client/commands/presenters
+├── config/                      # Settings, constants, logging config
+├── utils/                       # Helpers (embeds, checks, decorators)
+├── tests/                       # Unit & integration test scaffold
+├── requirements.txt             # Python dependencies
+├── docker-compose.yml           # Local stack (db/queue) scaffolding
+└── .env.example                 # Example environment file
 ```
+
+> ℹ️ The application follows a clean architecture: Discord-facing layers depend on domain interfaces, with MongoDB/RabbitMQ implementations living under `infrastructure/`.
 
 ## Available Commands
 
@@ -116,6 +111,10 @@ discord-bot/
 ### RESTCONF - Device Configuration
 - `/get-hostname` - Get router hostname
 - `/set-hostname` - Set router hostname
+- `/set-banner-motd` - Update MOTD banner
+- `/set-domain-name` - Configure domain name
+- `/get-name-servers` - View DNS servers
+- `/save-config` - Save running configuration
 
 ### RESTCONF - Routing
 - `/get-routing-table` - Get routing table information
@@ -169,7 +168,7 @@ The bot will automatically load all cogs in the `cogs/` directory on startup.
 - Remove `DEV_GUILD_ID` when ready to deploy globally
 
 ### Logging
-- Logs are saved to `logs/bot.log`
+- Configure log formatting via `config/logging_config.py`
 - Adjust `LOG_LEVEL` in `.env` (DEBUG, INFO, WARNING, ERROR)
 
 ### Error Handling
