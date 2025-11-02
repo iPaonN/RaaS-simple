@@ -2,19 +2,19 @@ name: Deploy Discord Bot (Docker)
 
 on:
   push:
-    branches: [main]
+    branches: [pioneer]
   workflow_run:
     workflows: ["CI - Build and Push Docker Image"]
     types:
       - completed
-    branches: [main]
+    branches: [pioneer]
 
 jobs:
   deploy:
     runs-on: self-hosted
     # Only run if CI workflow succeeded or if manually pushed
     if: ${{ github.event_name == 'push' || github.event.workflow_run.conclusion == 'success' }}
-    environment: secrets
+    environment: pioneer-deployment
     
     steps:
       - name: Log in to Docker Hub
