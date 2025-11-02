@@ -90,3 +90,78 @@ class ConfigService:
         except Exception as e:
             _logger.error("SSH connection failed: %s", e)
             raise RuntimeError(f"Failed to get configuration via SSH: {str(e)}")
+
+    async def restore_config(self, config_content: str) -> str:
+        """
+        Use SSH (Netmiko) to restore configuration to device.
+        
+        Args:
+            config_content: Configuration text to apply to the device.
+            
+        Returns:
+            Result message from the device.
+        """
+        _logger.info("Preparing to restore configuration to %s", self._host)
+        
+        # Run SSH command in thread pool
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None, 
+            self._restore_config_via_ssh, 
+            config_content
+        )
+        
+        return result
+    
+    def _restore_config_via_ssh(self, config_content: str) -> str:
+        """Execute configuration restore via SSH (blocking)."""
+        _logger.info("Connecting to %s via Netmiko for config restore", self._host)
+        
+        # Device connection parameters
+        device = {
+            'device_type': 'cisco_ios',
+            'host': self._host,
+            'username': self._username,
+            'password': self._password,
+            'port': 22,
+            'timeout': 30,
+            'session_timeout': 60,
+            'blocking_timeout': 30,
+            'global_delay_factor': 2,
+            # Support for legacy SSH algorithms
+            'ssh_config_file': None,
+            'allow_auto_change': True,
+        }
+        
+        try:
+            # Connect to device
+            connection = ConnectHandler(**device)
+            _logger.info("Connected to %s, applying configuration", self._host)
+            
+            # Enter configuration mode and apply config
+            # Split config into lines and filter out empty lines and comments
+            config_lines = [
+                line.strip() 
+                for line in config_content.split('\n') 
+                if line.strip() and not line.strip().startswith('!')
+            ]
+            
+            # Send config commands
+            output = connection.send_config_set(
+                config_lines,
+                exit_config_mode=True,
+                read_timeout=120
+            )
+            
+            # Save configuration
+            save_output = connection.save_config()
+            
+            # Disconnect
+            connection.disconnect()
+            
+            _logger.info("Successfully restored configuration to %s", self._host)
+            return f"Configuration applied successfully.\n{save_output}"
+            
+        except Exception as e:
+            _logger.error("SSH configuration restore failed: %s", e)
+            raise RuntimeError(f"Failed to restore configuration via SSH: {str(e)}")
