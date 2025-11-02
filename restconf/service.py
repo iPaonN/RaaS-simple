@@ -2,7 +2,16 @@
 from __future__ import annotations
 
 from restconf.client import RestconfClient
-from restconf.models import Hostname, Interface, RoutingTable, StaticRoute
+from restconf.models import (
+    Banner,
+    DeviceConfig,
+    DomainName,
+    Hostname,
+    Interface,
+    NameServerList,
+    RoutingTable,
+    StaticRoute,
+)
 from restconf.services import DeviceService, InterfaceService, RoutingService
 
 
@@ -49,3 +58,30 @@ class RestconfService:
 
     async def fetch_static_routes(self) -> list[StaticRoute]:
         return await self.routing.fetch_static_routes()
+
+    # ------------------------------------------------------------------
+    # Additional device helpers
+    # ------------------------------------------------------------------
+    async def fetch_running_config(self) -> DeviceConfig:
+        return await self.device.fetch_running_config()
+
+    async def fetch_startup_config(self) -> DeviceConfig:
+        return await self.device.fetch_startup_config()
+
+    async def fetch_banner_motd(self) -> Banner:
+        return await self.device.fetch_banner_motd()
+
+    async def update_banner_motd(self, message: str) -> Banner:
+        return await self.device.update_banner_motd(message)
+
+    async def fetch_domain_name(self) -> DomainName:
+        return await self.device.fetch_domain_name()
+
+    async def update_domain_name(self, domain: str) -> DomainName:
+        return await self.device.update_domain_name(domain)
+
+    async def fetch_name_servers(self) -> NameServerList:
+        return await self.device.fetch_name_servers()
+
+    async def save_config(self) -> bool:
+        return await self.device.save_config()
