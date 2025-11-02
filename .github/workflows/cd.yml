@@ -15,6 +15,11 @@ jobs:
     # Only run if CI workflow succeeded or if manually pushed
     if: ${{ github.event_name == 'push' || github.event.workflow_run.conclusion == 'success' }}
     environment: pioneer-deployment
+    env:
+      CONTAINER_NAME: ${{ format('femrouter-bot-{0}', github.ref_name) }}
+      DEPLOY_DIR: ${{ format('/opt/femrouter/{0}', github.ref_name) }}
+      ENV_FILE: ${{ format('/opt/femrouter/{0}/.env', github.ref_name) }}
+      LOG_DIR: ${{ format('/opt/femrouter/{0}/logs', github.ref_name) }}
     
     steps:
       - name: Log in to Docker Hub
@@ -27,39 +32,42 @@ jobs:
 
       - name: Create/Update .env file
         run: |
-          mkdir -p /opt/femrouter
-          echo "DISCORD_TOKEN=${{ secrets.DISCORD_TOKEN }}" > /opt/femrouter/.env
-          echo "DEV_GUILD_ID=${{ secrets.DEV_GUILD_ID }}" >> /opt/femrouter/.env
-          echo "PREFIX=!" >> /opt/femrouter/.env
-          echo "LOG_LEVEL=INFO" >> /opt/femrouter/.env
+          mkdir -p "${DEPLOY_DIR}"
+          echo "DISCORD_TOKEN=${{ secrets.DISCORD_TOKEN }}" > "${ENV_FILE}"
+          echo "DEV_GUILD_ID=${{ secrets.DEV_GUILD_ID }}" >> "${ENV_FILE}"
+          echo "PREFIX=!" >> "${ENV_FILE}"
+          echo "LOG_LEVEL=INFO" >> "${ENV_FILE}"
       
       - name: Verify .env file was created
         run: |
           echo "--- .env file check ---"
-          ls -la /opt/femrouter/.env
-          echo "File size: $(wc -c < /opt/femrouter/.env) bytes"
-          echo "Lines in file: $(wc -l < /opt/femrouter/.env)"
+          ls -la "${ENV_FILE}"
+          FILE_BYTES=$(wc -c < "${ENV_FILE}")
+          FILE_LINES=$(wc -l < "${ENV_FILE}")
+          echo "File size: ${FILE_BYTES} bytes"
+          echo "Lines in file: ${FILE_LINES}"
 
       - name: Stop and remove old container
         run: |
-          docker stop femrouter-bot || true
-          docker rm femrouter-bot || true
+          docker stop "${CONTAINER_NAME}" || true
+          docker rm "${CONTAINER_NAME}" || true
 
       - name: Run new container
         run: |
+          mkdir -p "${LOG_DIR}"
           docker run -d \
-            --name femrouter-bot \
+            --name "${CONTAINER_NAME}" \
             --restart unless-stopped \
-            --env-file /opt/femrouter/.env \
-            -v /opt/femrouter/logs:/app/logs \
+            --env-file "${ENV_FILE}" \
+            -v "${LOG_DIR}":/app/logs \
             ${{ secrets.DOCKERHUB_USERNAME }}/femrouter:latest
 
       - name: Check container status
         run: |
           sleep 5
-          docker ps -a | grep femrouter-bot
+          docker ps -a | grep "${CONTAINER_NAME}"
           echo "--- Container Logs ---"
-          docker logs femrouter-bot --tail 50
+          docker logs "${CONTAINER_NAME}" --tail 50
 
       - name: Clean up old images
         run: |
