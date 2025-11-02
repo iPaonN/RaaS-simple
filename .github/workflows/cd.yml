@@ -28,7 +28,7 @@ jobs:
 
       - name: Pull latest image
         run: |
-          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/femrouter:latest
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/femrouter-rizzler:latest
 
       - name: Create/Update .env file
         run: |
