@@ -3,14 +3,14 @@ name: CI - Build and Push Docker Image
 on:
   push:
     branches:
-      - main
+      - pioneer
   pull_request:
     branches:
-      - main
+      - pioneer
 
 env:
   REGISTRY: docker.io
-  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/femrouter
+  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/femrouter-rizzler
 
 jobs:
   build-and-push:

@@ -1,0 +1,5 @@
+# Ignore all configuration backups
+configs/
+
+# But keep the directory structure
+!configs/.gitkeep
