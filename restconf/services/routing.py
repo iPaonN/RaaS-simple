@@ -20,7 +20,7 @@ class RoutingService(RestconfDomainService):
 
     async def fetch_static_routes(self) -> List[StaticRoute]:
         payload = await self.client.get("Cisco-IOS-XE-native:native/ip/route")
-        routes_payload = payload.get("Cisco-IOS-XE-native:route", [])
+        routes_payload = payload.get("Cisco-IOS-XE-native:route")
         return self._parse_static_routes(routes_payload)
 
     async def add_static_route(self, prefix: str, netmask: str, next_hop: str) -> StaticRoute:
@@ -75,7 +75,7 @@ class RoutingService(RestconfDomainService):
             try:
                 network = ipaddress.IPv4Network(f"0.0.0.0/{dotted}")
                 return dotted, str(network.prefixlen)
-            except ValueError:  # pragma: no cover - invalid netmask
+            except ValueError:
                 return dotted, ""
 
     def _extract_static_routes(self, payload: Dict[str, object]) -> List[StaticRoute]:
@@ -98,8 +98,14 @@ class RoutingService(RestconfDomainService):
         return routes
 
     def _parse_static_routes(self, payload: object) -> List[StaticRoute]:
+        if payload is None:
+            return []
         if isinstance(payload, dict):
-            payload = [payload]
+            forwarding_entries = payload.get("ip-route-interface-forwarding-list")
+            if forwarding_entries is not None:
+                payload = forwarding_entries
+            else:
+                payload = [payload]
         if not isinstance(payload, list):
             return []
         routes: List[StaticRoute] = []
@@ -121,10 +127,12 @@ class RoutingService(RestconfDomainService):
             next_hop: object = entry.get("next-hop") or entry.get("fwd")
             if not next_hop:
                 fwd_list = entry.get("fwd-list")
-                if isinstance(fwd_list, list) and fwd_list:
-                    candidate = fwd_list[0]
-                    if isinstance(candidate, dict):
-                        next_hop = candidate.get("fwd") or candidate.get("next-hop")
+                if isinstance(fwd_list, list):
+                    for candidate in fwd_list:
+                        if isinstance(candidate, dict):
+                            next_hop = candidate.get("fwd") or candidate.get("next-hop")
+                            if next_hop:
+                                break
 
             routes.append(StaticRoute(prefix=str(display_prefix), next_hop=str(next_hop or "unknown")))
         return routes
