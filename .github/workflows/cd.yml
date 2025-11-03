@@ -74,7 +74,7 @@ jobs:
           RABBITMQ_DEFAULT_USER: ${{ secrets.RABBITMQ_DEFAULT_USER }}
           RABBITMQ_DEFAULT_PASS: ${{ secrets.RABBITMQ_DEFAULT_PASS }}
         run: |
-          python - <<'PY'
+          python3 - <<'PY'
           import os
           from urllib.parse import quote
 
