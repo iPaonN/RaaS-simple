@@ -20,6 +20,21 @@ class TaskService:
         task.updated_at = task.created_at
         return await self._repository.add(task)
 
+    async def list_tasks(
+        self,
+        *,
+        guild_id: int | None = None,
+        limit: int = 50,
+    ) -> list[Task]:
+        """Return recent tasks, optionally scoped to a guild."""
+
+        tasks = await self._repository.list()
+        if guild_id is not None:
+            tasks = [task for task in tasks if task.guild_id == guild_id]
+
+        tasks.sort(key=lambda task: task.updated_at or task.created_at, reverse=True)
+        return tasks[: max(limit, 0)]
+
     async def mark_running(self, task: Task) -> Task:
         task.status = TaskStatus.RUNNING
         task.updated_at = datetime.utcnow()
