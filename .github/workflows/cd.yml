@@ -26,7 +26,7 @@ jobs:
       NETWORK_NAME: ${{ format('femrouter-net-{0}', github.ref_name) }}
       MONGO_CONTAINER_NAME: ${{ format('femrouter-mongodb-{0}', github.ref_name) }}
       MONGO_DATA_DIR: ${{ format('/opt/femrouter/{0}/mongo-data', github.ref_name) }}
-      RABBIT_DATA_DIR: ${{ format('/opt/femrouter/{0}/rabbitmq-data', github.ref_name) }}
+      RABBIT_VOLUME_NAME: ${{ format('femrouter-rabbitmq-data-{0}', github.ref_name) }}
       IMAGE_REPOSITORY_BOT: ${{ format('{0}/femrouter-bot', secrets.DOCKERHUB_USERNAME) }}
       IMAGE_REPOSITORY_WORKER: ${{ format('{0}/femrouter-worker', secrets.DOCKERHUB_USERNAME) }}
       IMAGE_TAG: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref_name }}
@@ -60,7 +60,10 @@ jobs:
           mkdir -p "${DEPLOY_DIR}"
           mkdir -p "${LOG_DIR}"
           mkdir -p "${MONGO_DATA_DIR}"
-          mkdir -p "${RABBIT_DATA_DIR}"
+
+      - name: Ensure RabbitMQ volume exists
+        run: |
+          docker volume inspect "${RABBIT_VOLUME_NAME}" >/dev/null 2>&1 || docker volume create "${RABBIT_VOLUME_NAME}"
 
       - name: Create/Update .env file
         env:
@@ -136,7 +139,7 @@ jobs:
             --network "${NETWORK_NAME}" \
             -e RABBITMQ_DEFAULT_USER="${RABBITMQ_DEFAULT_USER}" \
             -e RABBITMQ_DEFAULT_PASS="${RABBITMQ_DEFAULT_PASS}" \
-            -v "${RABBIT_DATA_DIR}":/var/lib/rabbitmq \
+            -v "${RABBIT_VOLUME_NAME}":/var/lib/rabbitmq \
             -p 0:5672 \
             -p 0:15672 \
             rabbitmq:3.13-management
