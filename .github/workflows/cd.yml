@@ -60,7 +60,7 @@ jobs:
           echo "DEV_GUILD_ID=${DEV_GUILD_ID}" >> "${ENV_FILE}"
           echo "PREFIX=!" >> "${ENV_FILE}"
           echo "LOG_LEVEL=INFO" >> "${ENV_FILE}"
-          echo "MONGODB_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@${MONGO_CONTAINER_NAME}:27017/femrouter?authSource=admin" >> "${ENV_FILE}"
+          echo "MONGODB_URI=mongodb://${MONGODB_URI}" >> "${ENV_FILE}"
           echo "MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME}" >> "${ENV_FILE}"
           echo "MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}" >> "${ENV_FILE}"
       
