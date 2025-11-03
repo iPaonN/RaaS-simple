@@ -3,10 +3,10 @@ name: CI - Build and Push Docker Image
 on:
   push:
     branches:
-      - pioneer
+      - 112dev
   pull_request:
     branches:
-      - pioneer
+      - 112dev
 
 env:
   REGISTRY: docker.io
