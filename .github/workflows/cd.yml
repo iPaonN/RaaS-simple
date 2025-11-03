@@ -24,6 +24,8 @@ jobs:
       NETWORK_NAME: ${{ format('femrouter-net-{0}', github.ref_name) }}
       MONGO_CONTAINER_NAME: ${{ format('femrouter-mongodb-{0}', github.ref_name) }}
       MONGO_DATA_DIR: ${{ format('/opt/femrouter/{0}/mongo-data', github.ref_name) }}
+      IMAGE_REPOSITORY: ${{ format('{0}/femrouter', secrets.DOCKERHUB_USERNAME) }}
+      IMAGE_TAG: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref_name }}
     
     steps:
       - name: Log in to Docker Hub
@@ -34,10 +36,8 @@ jobs:
           echo "${DOCKERHUB_TOKEN}" | docker login docker.io -u "${DOCKERHUB_USERNAME}" --password-stdin
 
       - name: Pull latest bot image
-        env:
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         run: |
-          docker pull "${DOCKERHUB_USERNAME}/femrouter:latest"
+          docker pull "${IMAGE_REPOSITORY}:${IMAGE_TAG}"
 
       - name: Pull MongoDB image
         run: |
@@ -99,8 +99,6 @@ jobs:
             mongo:7.0
 
       - name: Run new container
-        env:
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         run: |
           docker run -d \
             --name "${CONTAINER_NAME}" \
@@ -108,7 +106,7 @@ jobs:
             --env-file "${ENV_FILE}" \
             -v "${LOG_DIR}":/app/logs \
             --network "${NETWORK_NAME}" \
-            "${DOCKERHUB_USERNAME}/femrouter:latest"
+            "${IMAGE_REPOSITORY}:${IMAGE_TAG}"
 
       - name: Check container status
         run: |
