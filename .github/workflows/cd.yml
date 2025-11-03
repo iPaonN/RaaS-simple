@@ -53,7 +53,6 @@ jobs:
         env:
           DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
           DEV_GUILD_ID: ${{ secrets.DEV_GUILD_ID }}
-          MONGODB_URI: ${{ secrets.MONGODB_URI }}
           MONGO_INITDB_ROOT_USERNAME: ${{ secrets.MONGO_INITDB_ROOT_USERNAME }}
           MONGO_INITDB_ROOT_PASSWORD: ${{ secrets.MONGO_INITDB_ROOT_PASSWORD }}
         run: |
@@ -61,9 +60,9 @@ jobs:
           echo "DEV_GUILD_ID=${DEV_GUILD_ID}" >> "${ENV_FILE}"
           echo "PREFIX=!" >> "${ENV_FILE}"
           echo "LOG_LEVEL=INFO" >> "${ENV_FILE}"
-          echo "MONGODB_URI=${MONGODB_URI}" >> "${ENV_FILE}"
           echo "MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME}" >> "${ENV_FILE}"
           echo "MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}" >> "${ENV_FILE}"
+          echo "MONGODB_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@${MONGO_CONTAINER_NAME}:27017/femrouter?authSource=admin" >> "${ENV_FILE}"
       
       - name: Verify .env file was created
         run: |
