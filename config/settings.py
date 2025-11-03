@@ -18,6 +18,15 @@ DEV_GUILD_ID = int(os.getenv('DEV_GUILD_ID', 0)) if os.getenv('DEV_GUILD_ID') el
 
 # Database (optional)
 DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///data/bot.db')
+MONGODB_URI = os.getenv('MONGODB_URI')
+MONGODB_DB = os.getenv('MONGODB_DB', 'femrouter')
+MONGODB_ROUTER_COLLECTION = os.getenv('MONGODB_ROUTER_COLLECTION', 'routers')
+MONGODB_TASK_COLLECTION = os.getenv('MONGODB_TASK_COLLECTION', 'tasks')
+
+# RabbitMQ (optional)
+RABBITMQ_URI = os.getenv('RABBITMQ_URI')
+RABBITMQ_QUEUE = os.getenv('RABBITMQ_QUEUE', 'router_events')
+RABBITMQ_TASK_QUEUE = os.getenv('RABBITMQ_TASK_QUEUE', 'router_tasks')
 
 # Logging
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'DEBUG')
