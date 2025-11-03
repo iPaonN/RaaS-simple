@@ -18,6 +18,9 @@ DEV_GUILD_ID = int(os.getenv('DEV_GUILD_ID', 0)) if os.getenv('DEV_GUILD_ID') el
 
 # Database (optional)
 DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///data/bot.db')
+MONGODB_URI = os.getenv('MONGODB_URI')
+MONGODB_DB = os.getenv('MONGODB_DB', 'femrouter')
+MONGODB_ROUTER_COLLECTION = os.getenv('MONGODB_ROUTER_COLLECTION', 'routers')
 
 # Logging
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'DEBUG')

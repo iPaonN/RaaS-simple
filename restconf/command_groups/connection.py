@@ -1,6 +1,7 @@
 """Slash command registrations for connection management."""
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Optional, Sequence
 
 import discord
@@ -10,12 +11,17 @@ from restconf.command_groups.base import CommandGroup
 from restconf.connection_manager import ConnectionManager
 from restconf.errors import RestconfConnectionError, RestconfHTTPError
 from restconf.services.connection import ConnectionResult, ConnectionService
+from infrastructure.mongodb.router_store import MongoRouterStore
 from utils.embeds import create_success_embed, create_error_embed, create_info_embed
+from utils.logger import get_logger
+
+_logger = get_logger(__name__)
 
 
 def _build_connect_command(
     connection_manager: ConnectionManager,
     connection_service: ConnectionService,
+    router_store: Optional[MongoRouterStore],
 ) -> app_commands.Command:
     @app_commands.command(name="connect", description="Connect to a router or show current connection")
     @app_commands.describe(
@@ -53,7 +59,7 @@ def _build_connect_command(
             return
         
         # Validate that all parameters are provided
-        if not all([host, username, password]):
+        if host is None or username is None or password is None:
             embed = create_error_embed(
                 title="❌ Invalid Parameters",
                 description="Please provide all three parameters: **host**, **username**, and **password**.\n\n"
@@ -66,13 +72,41 @@ def _build_connect_command(
         try:
             result: ConnectionResult = await connection_service.connect(host, username, password)
 
+            storage_note = ""
+            guild_id = interaction.guild_id
+            if router_store and guild_id is not None:
+                try:
+                    await router_store.upsert_router(
+                        {
+                            "guild_id": guild_id,
+                            "ip": result.host,
+                            "hostname": result.hostname,
+                            "username": username,
+                            "password": password,
+                            "name": result.hostname or result.host,
+                            "last_connected_at": datetime.utcnow(),
+                        }
+                    )
+                    storage_note = "\n\nStored router profile for quick reconnect."
+                except Exception as store_error:  # pragma: no cover - best effort logging
+                    _logger.warning(
+                        "Failed to persist router profile for guild %s (%s): %s",
+                        guild_id,
+                        result.host,
+                        store_error,
+                    )
+
+            description = (
+                "Successfully connected to router: **{host}**\n"
+                "Hostname: **{hostname}**\n\n"
+                "All RESTCONF commands will now use this connection."
+            ).format(host=result.host, hostname=result.hostname)
+            if storage_note:
+                description += storage_note
+
             embed = create_success_embed(
                 title="✅ Connection Successful",
-                description=(
-                    "Successfully connected to router: **{host}**\n"
-                    "Hostname: **{hostname}**\n\n"
-                    "All RESTCONF commands will now use this connection."
-                ).format(host=result.host, hostname=result.hostname),
+                description=description,
             )
             await interaction.followup.send(embed=embed)
             
@@ -135,10 +169,173 @@ def _build_disconnect_command(connection_service: ConnectionService) -> app_comm
     return command
 
 
+def _build_router_list_command(
+    connection_manager: ConnectionManager,
+    connection_service: ConnectionService,
+    router_store: Optional[MongoRouterStore],
+) -> app_commands.Command:
+    @app_commands.command(
+        name="get-router-list",
+        description="List stored routers and optionally switch to one",
+    )
+    @app_commands.describe(target="Router IP address or hostname to switch to")
+    async def command(interaction: discord.Interaction, target: Optional[str] = None) -> None:
+        await interaction.response.defer(thinking=True)
+
+        if router_store is None:
+            embed = create_error_embed(
+                title="❌ Storage Unavailable",
+                description="Router persistence is not configured for this deployment.",
+            )
+            await interaction.followup.send(embed=embed)
+            return
+
+        guild_id = interaction.guild_id
+        if guild_id is None:
+            embed = create_error_embed(
+                title="❌ Server Only",
+                description="This command is only available within a Discord server.",
+            )
+            await interaction.followup.send(embed=embed)
+            return
+
+        routers = await router_store.list_routers(guild_id)
+        current_host = connection_manager.get_host()
+
+        if target is None:
+            if not routers:
+                embed = create_info_embed(
+                    title="ℹ️ No Stored Routers",
+                    description=(
+                        "No routers have been stored yet. Connect with `/connect` to save the current router."
+                    ),
+                )
+                await interaction.followup.send(embed=embed)
+                return
+
+            lines = []
+            for router in routers:
+                hostname = router.get("hostname") or router.get("name") or router.get("ip")
+                ip = router.get("ip", "unknown")
+                username = router.get("username", "?")
+                marker = " (current)" if current_host and current_host == ip else ""
+                lines.append(f"• **{hostname}** — `{ip}` (user `{username}`){marker}")
+
+            embed = create_info_embed(
+                title="🗂️ Stored Routers",
+                description="\n".join(lines) + "\n\nProvide a `target` to switch to one of them.",
+            )
+            await interaction.followup.send(embed=embed)
+            return
+
+        router = next(
+            (
+                r
+                for r in routers
+                if target == r.get("ip")
+                or target == r.get("hostname")
+                or target == r.get("name")
+            ),
+            None,
+        )
+
+        if router is None:
+            embed = create_error_embed(
+                title="❌ Router Not Found",
+                description=(
+                    f"Could not find a stored router matching `{target}`. Use `/get-router-list` without a target"
+                    " to view all stored routers."
+                ),
+            )
+            await interaction.followup.send(embed=embed)
+            return
+
+        stored_username = router.get("username")
+        stored_password = router.get("password")
+        stored_ip = router.get("ip")
+
+        if not stored_username or not stored_password or not stored_ip:
+            embed = create_error_embed(
+                title="❌ Incomplete Router Profile",
+                description="The stored router does not have the required credentials to reconnect.",
+            )
+            await interaction.followup.send(embed=embed)
+            return
+
+        try:
+            result = await connection_service.connect(stored_ip, stored_username, stored_password)
+
+            try:
+                await router_store.upsert_router(
+                    {
+                        "guild_id": guild_id,
+                        "ip": stored_ip,
+                        "hostname": result.hostname,
+                        "username": stored_username,
+                        "password": stored_password,
+                        "name": router.get("name") or result.hostname or stored_ip,
+                        "last_connected_at": datetime.utcnow(),
+                    }
+                )
+            except Exception as store_error:  # pragma: no cover - best effort logging
+                _logger.warning(
+                    "Failed to update router profile for guild %s (%s): %s",
+                    guild_id,
+                    stored_ip,
+                    store_error,
+                )
+
+            embed = create_success_embed(
+                title="✅ Switched Router",
+                description=(
+                    "Now connected to router: **{host}**\nHostname: **{hostname}**\n\n"
+                    "All RESTCONF commands will now use this connection."
+                ).format(host=result.host, hostname=result.hostname),
+            )
+            await interaction.followup.send(embed=embed)
+
+        except RestconfConnectionError as e:
+            embed = create_error_embed(
+                title="❌ Connection Failed",
+                description=(
+                    f"Could not connect to stored router **{stored_ip}**\n\n"
+                    f"**Error:** {str(e)}\n\n"
+                    "The stored credentials may be outdated."
+                ),
+            )
+            await interaction.followup.send(embed=embed)
+
+        except RestconfHTTPError as e:
+            embed = create_error_embed(
+                title="❌ Authentication Failed",
+                description=(
+                    f"Authentication failed for stored router **{stored_ip}**\n\n"
+                    f"**Error:** {str(e)}\n\n"
+                    "Please verify the stored username and password."
+                ),
+            )
+            await interaction.followup.send(embed=embed)
+
+        except Exception as e:
+            embed = create_error_embed(
+                title="❌ Unexpected Error",
+                description=f"An unexpected error occurred while switching routers:\n\n```{str(e)}```",
+            )
+            await interaction.followup.send(embed=embed)
+
+    return command
+
+
 class ConnectionCommandGroup(CommandGroup):
-    def __init__(self, connection_manager: ConnectionManager, connection_service: ConnectionService) -> None:
+    def __init__(
+        self,
+        connection_manager: ConnectionManager,
+        connection_service: ConnectionService,
+        router_store: Optional[MongoRouterStore] = None,
+    ) -> None:
         commands: Sequence[app_commands.Command] = [
-            _build_connect_command(connection_manager, connection_service),
+            _build_connect_command(connection_manager, connection_service, router_store),
             _build_disconnect_command(connection_service),
+            _build_router_list_command(connection_manager, connection_service, router_store),
         ]
         super().__init__(commands)

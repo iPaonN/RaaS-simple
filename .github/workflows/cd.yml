@@ -21,6 +21,9 @@ jobs:
       DEPLOY_DIR: ${{ format('/opt/femrouter/{0}', github.ref_name) }}
       ENV_FILE: ${{ format('/opt/femrouter/{0}/.env', github.ref_name) }}
       LOG_DIR: ${{ format('/opt/femrouter/{0}/logs', github.ref_name) }}
+      NETWORK_NAME: ${{ format('femrouter-net-{0}', github.ref_name) }}
+      MONGO_CONTAINER_NAME: ${{ format('femrouter-mongodb-{0}', github.ref_name) }}
+      MONGO_DATA_DIR: ${{ format('/opt/femrouter/{0}/mongo-data', github.ref_name) }}
     
     steps:
       - name: Log in to Docker Hub
@@ -30,22 +33,36 @@ jobs:
         run: |
           echo "${DOCKERHUB_TOKEN}" | docker login docker.io -u "${DOCKERHUB_USERNAME}" --password-stdin
 
-      - name: Pull latest image
+      - name: Pull latest bot image
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         run: |
           docker pull "${DOCKERHUB_USERNAME}/femrouter:latest"
 
+      - name: Pull MongoDB image
+        run: |
+          docker pull mongo:7.0
+
+      - name: Prepare deployment directories
+        run: |
+          mkdir -p "${DEPLOY_DIR}"
+          mkdir -p "${LOG_DIR}"
+          mkdir -p "${MONGO_DATA_DIR}"
+
       - name: Create/Update .env file
         env:
           DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
           DEV_GUILD_ID: ${{ secrets.DEV_GUILD_ID }}
+          MONGO_INITDB_ROOT_USERNAME: ${{ secrets.MONGO_INITDB_ROOT_USERNAME }}
+          MONGO_INITDB_ROOT_PASSWORD: ${{ secrets.MONGO_INITDB_ROOT_PASSWORD }}
         run: |
-          mkdir -p "${DEPLOY_DIR}"
           echo "DISCORD_TOKEN=${DISCORD_TOKEN}" > "${ENV_FILE}"
           echo "DEV_GUILD_ID=${DEV_GUILD_ID}" >> "${ENV_FILE}"
           echo "PREFIX=!" >> "${ENV_FILE}"
           echo "LOG_LEVEL=INFO" >> "${ENV_FILE}"
+          echo "MONGODB_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@${MONGO_CONTAINER_NAME}:27017/femrouter?authSource=admin" >> "${ENV_FILE}"
+          echo "MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME}" >> "${ENV_FILE}"
+          echo "MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}" >> "${ENV_FILE}"
       
       - name: Verify .env file was created
         run: |
@@ -56,21 +73,41 @@ jobs:
           echo "File size: ${FILE_BYTES} bytes"
           echo "Lines in file: ${FILE_LINES}"
 
-      - name: Stop and remove old container
+      - name: Stop and remove old containers
         run: |
+          docker stop "${MONGO_CONTAINER_NAME}" || true
+          docker rm "${MONGO_CONTAINER_NAME}" || true
           docker stop "${CONTAINER_NAME}" || true
           docker rm "${CONTAINER_NAME}" || true
+
+      - name: Ensure deployment network exists
+        run: |
+          docker network inspect "${NETWORK_NAME}" >/dev/null 2>&1 || docker network create "${NETWORK_NAME}"
+
+      - name: Run MongoDB container
+        env:
+          MONGO_INITDB_ROOT_USERNAME: ${{ secrets.MONGO_INITDB_ROOT_USERNAME }}
+          MONGO_INITDB_ROOT_PASSWORD: ${{ secrets.MONGO_INITDB_ROOT_PASSWORD }}
+        run: |
+          docker run -d \
+            --name "${MONGO_CONTAINER_NAME}" \
+            --restart unless-stopped \
+            --network "${NETWORK_NAME}" \
+            -e MONGO_INITDB_ROOT_USERNAME="${MONGO_INITDB_ROOT_USERNAME}" \
+            -e MONGO_INITDB_ROOT_PASSWORD="${MONGO_INITDB_ROOT_PASSWORD}" \
+            -v "${MONGO_DATA_DIR}":/data/db \
+            mongo:7.0
 
       - name: Run new container
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         run: |
-          mkdir -p "${LOG_DIR}"
           docker run -d \
             --name "${CONTAINER_NAME}" \
             --restart unless-stopped \
             --env-file "${ENV_FILE}" \
             -v "${LOG_DIR}":/app/logs \
+            --network "${NETWORK_NAME}" \
             "${DOCKERHUB_USERNAME}/femrouter:latest"
 
       - name: Check container status

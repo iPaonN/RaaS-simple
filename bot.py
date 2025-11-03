@@ -6,8 +6,18 @@ from pathlib import Path
 import discord
 from discord import app_commands
 from discord.ext import commands
+from motor.motor_asyncio import AsyncIOMotorClient  # type: ignore[import]
 
-from config.settings import DEV_GUILD_ID, LOG_LEVEL, PREFIX, TOKEN
+from config.settings import (
+    DEV_GUILD_ID,
+    LOG_LEVEL,
+    MONGODB_DB,
+    MONGODB_ROUTER_COLLECTION,
+    MONGODB_URI,
+    PREFIX,
+    TOKEN,
+)
+from infrastructure.mongodb.router_store import MongoRouterStore
 from utils.embeds import create_error_embed
 from utils.logger import configure_logging, get_logger
 
@@ -31,10 +41,14 @@ class FemRouterBot(commands.Bot):
             intents=intents,
             help_command=None  # We'll use custom help command
         )
+        self.mongo_client: AsyncIOMotorClient | None = None
+        self.router_store: MongoRouterStore | None = None
     
     async def setup_hook(self) -> None:
         """Load all cogs from the cogs directory"""
         logger.info("Loading cogs...")
+
+        self._initialise_mongo()
         
         # Auto-load all cogs from the cogs directory
         cogs_dir = Path("./cogs")
@@ -82,6 +96,28 @@ class FemRouterBot(commands.Bot):
                 logger.error("Failed to sync commands: %s", exc)
         except Exception as exc:
             logger.error("Failed to sync commands: %s", exc)
+
+    def _initialise_mongo(self) -> None:
+        """Initialise MongoDB client if configuration is provided."""
+
+        if not MONGODB_URI:
+            logger.info("MONGODB_URI not set; Mongo-backed features disabled")
+            return
+
+        try:
+            self.mongo_client = AsyncIOMotorClient(MONGODB_URI)
+            database = self.mongo_client[MONGODB_DB]
+            collection = database[MONGODB_ROUTER_COLLECTION]
+            self.router_store = MongoRouterStore(collection)
+            logger.info(
+                "MongoDB initialised (db=%s, collection=%s)",
+                MONGODB_DB,
+                MONGODB_ROUTER_COLLECTION,
+            )
+        except Exception as exc:  # pragma: no cover - connection failure path
+            logger.error("Failed to initialise MongoDB client: %s", exc)
+            self.mongo_client = None
+            self.router_store = None
 
     async def on_ready(self) -> None:
         """Called when bot is ready"""
@@ -158,6 +194,11 @@ class FemRouterBot(commands.Bot):
         if len(message) > 500:
             message = f"{message[:497]}…"
         return message
+
+    async def close(self) -> None:
+        if self.mongo_client:
+            self.mongo_client.close()
+        await super().close()
 
 
 if __name__ == '__main__':

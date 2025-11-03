@@ -15,6 +15,7 @@ from restconf.client import RestconfClient
 from restconf.connection_manager import ConnectionManager
 from restconf.service import RestconfService
 from restconf.services.connection import ConnectionService
+from infrastructure.mongodb.router_store import MongoRouterStore
 from utils.logger import get_logger
 
 _logger = get_logger(__name__)
@@ -28,6 +29,7 @@ class RestconfCog(commands.Cog):
         self._groups = []
         self._connection_manager = ConnectionManager()
         self._connection_service = ConnectionService(self._connection_manager)
+        self._router_store: MongoRouterStore | None = getattr(bot, "router_store", None)
 
     def _service_builder(self, host: str, username: str, password: str) -> RestconfService:
         client = RestconfClient(host, username, password)
@@ -45,7 +47,11 @@ class RestconfCog(commands.Cog):
 
     async def cog_load(self) -> None:
         group_instances = [
-            ConnectionCommandGroup(self._connection_manager, self._connection_service),
+            ConnectionCommandGroup(
+                self._connection_manager,
+                self._connection_service,
+                self._router_store,
+            ),
             InterfaceCommandGroup(self._service_builder, self._connection_manager),
             DeviceCommandGroup(self._service_builder, self._connection_manager),
             RoutingCommandGroup(self._service_builder, self._connection_manager),

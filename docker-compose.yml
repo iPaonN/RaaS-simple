@@ -22,6 +22,10 @@ services:
     # Mount logs directory to persist logs
     volumes:
       - ./logs:/app/logs
+    depends_on:
+      - mongodb
+    networks:
+      - bot-network
     
     # Health check (optional)
     # healthcheck:
@@ -36,3 +40,23 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  mongodb:
+    image: mongo:7.0
+    container_name: femrouter-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+    volumes:
+      - mongodb_data:/data/db
+    ports:
+      - "27017:27017"  # Only expose if you need external dev access
+    networks:
+      - bot-network
+
+volumes:
+  mongodb_data:
+
+networks:
+  bot-network:
