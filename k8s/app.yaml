@@ -18,6 +18,8 @@ spec:
         app: femrouter
         component: bot
     spec:
+      imagePullSecrets:
+        - name: regcred
       containers:
         - name: bot
           image: docker.io/ipaonn/femrouter-bot:latest
@@ -55,6 +57,8 @@ spec:
         app: femrouter
         component: worker
     spec:
+      imagePullSecrets:
+        - name: regcred
       containers:
         - name: worker
           image: docker.io/ipaonn/femrouter-worker:latest
