@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: discord-bot-config
+  namespace: discord-bot
+  labels:
+    app: femrouter
+    component: config
+  annotations:
+    kubernetes.io/description: Non-secret environment variables for Femrouter workloads
+    femrouter.io/owner: discord-bot
+    femrouter.io/description: Core configuration shared by femrouter pods
+    femrouter.io/version: v1
+    femrouter.io/contact: "Sleepyna"
+    femrouter.io/project: femrouter
+    femrouter.io/description-extended: Non-sensitive configuration for Femrouter Discord bot and worker
+    femrouter.io/docs: "https://github.com/iPaonN/RaaS-simple"
+data:
+  PREFIX: "!"
+  LOG_LEVEL: "INFO"
+  DEV_GUILD_ID: ""
+  MONGODB_DB: "femrouter"
+  MONGODB_ROUTER_COLLECTION: "routers"
+  MONGODB_TASK_COLLECTION: "tasks"
+  RABBITMQ_QUEUE: "router_events"
+  RABBITMQ_TASK_QUEUE: "router_tasks"
