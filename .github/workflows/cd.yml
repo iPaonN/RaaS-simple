@@ -2,19 +2,19 @@ name: Deploy Discord Bot (Docker)
 
 on:
   push:
-    branches: [112dev]
+    branches: [pioneer]
   workflow_run:
     workflows: ["CI - Build and Push Docker Image"]
     types:
       - completed
-    branches: [112dev]
+    branches: [pioneer]
 
 jobs:
   deploy:
     runs-on: self-hosted
     # Only run if CI workflow succeeded or if manually pushed
     if: ${{ github.event_name == 'push' || github.event.workflow_run.conclusion == 'success' }}
-    environment: secrets
+    environment: pioneer-deployment
 
     env:
       CONTAINER_NAME: ${{ format('femrouter-bot-{0}', github.ref_name) }}
@@ -24,8 +24,8 @@ jobs:
       NETWORK_NAME: ${{ format('femrouter-net-{0}', github.ref_name) }}
       MONGO_CONTAINER_NAME: ${{ format('femrouter-mongodb-{0}', github.ref_name) }}
       MONGO_DATA_DIR: ${{ format('/opt/femrouter/{0}/mongo-data', github.ref_name) }}
-      IMAGE_REPOSITORY: ${{ format('{0}/femrouter', secrets.DOCKERHUB_USERNAME) }}
-      IMAGE_TAG: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref_name }}
+      IMAGE_REPOSITORY: "${{ format('{0}/femrouter-rizzler', secrets.DOCKERHUB_USERNAME) }}"
+      IMAGE_TAG: "${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref_name }}"
     
     steps:
       - name: Log in to Docker Hub
