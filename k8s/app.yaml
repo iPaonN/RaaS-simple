@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: femrouter-bot
+  namespace: discord-bot
+  labels:
+    app: femrouter
+    component: bot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: femrouter
+      component: bot
+  template:
+    metadata:
+      labels:
+        app: femrouter
+        component: bot
+    spec:
+      containers:
+        - name: bot
+          image: docker.io/ipaonn/femrouter-bot:latest
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: discord-bot-config
+            - secretRef:
+                name: discord-2
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: femrouter-worker
+  namespace: discord-bot
+  labels:
+    app: femrouter
+    component: worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: femrouter
+      component: worker
+  template:
+    metadata:
+      labels:
+        app: femrouter
+        component: worker
+    spec:
+      containers:
+        - name: worker
+          image: docker.io/ipaonn/femrouter-worker:latest
+          imagePullPolicy: Always
+          command: ["python", "workers/router_event_worker.py"]
+          envFrom:
+            - configMapRef:
+                name: discord-bot-config
+            - secretRef:
+                name: discord-2
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
