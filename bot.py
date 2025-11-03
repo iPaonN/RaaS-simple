@@ -4,9 +4,11 @@ from __future__ import annotations
 from pathlib import Path
 
 import discord
+from discord import app_commands
 from discord.ext import commands
 
 from config.settings import DEV_GUILD_ID, LOG_LEVEL, PREFIX, TOKEN
+from utils.embeds import create_error_embed
 from utils.logger import configure_logging, get_logger
 
 # Configure structured logging before the bot starts to log anything.
@@ -96,10 +98,66 @@ class FemRouterBot(commands.Bot):
         )
     
     async def on_command_error(self, ctx: commands.Context, error: Exception) -> None:
-        """Handle command errors"""
+        """Handle prefix command errors by notifying the user."""
+
         if isinstance(error, commands.CommandNotFound):
             return
-        logger.error("Command error: %s", error)
+
+        root_error = error
+        if isinstance(error, commands.CommandInvokeError) and error.original:
+            root_error = error.original
+
+        logger.exception("Command error", exc_info=root_error)
+
+        await self._send_command_error(ctx=ctx, message=self._format_error_message(root_error))
+
+    async def on_app_command_error(
+        self,
+        interaction: discord.Interaction,
+        error: app_commands.AppCommandError,
+    ) -> None:
+        """Handle slash command errors and send feedback to the invoker."""
+
+        root_error: Exception = error
+        if isinstance(error, app_commands.CommandInvokeError) and error.original:
+            root_error = error.original
+
+        logger.exception("App command error", exc_info=root_error)
+
+        await self._send_command_error(interaction=interaction, message=self._format_error_message(root_error))
+
+    async def _send_command_error(
+        self,
+        *,
+        ctx: commands.Context | None = None,
+        interaction: discord.Interaction | None = None,
+        message: str,
+    ) -> None:
+        """Deliver an error embed back to the issuer, handling both command styles."""
+
+        embed = create_error_embed("Command failed", message)
+
+        try:
+            if interaction is not None:
+                if interaction.response.is_done():
+                    await interaction.followup.send(embed=embed, ephemeral=True)
+                else:
+                    await interaction.response.send_message(embed=embed, ephemeral=True)
+            elif ctx is not None:
+                await ctx.reply(embed=embed, mention_author=False)
+        except Exception as exc:  # pragma: no cover - notification failure
+            logger.exception("Failed to notify user about command error", exc_info=exc)
+
+    @staticmethod
+    def _format_error_message(error: Exception) -> str:
+        """Return a concise, user-friendly error description."""
+
+        message = str(error).strip()
+        if not message:
+            message = error.__class__.__name__
+        if len(message) > 500:
+            message = f"{message[:497]}…"
+        return message
 
 
 if __name__ == '__main__':
