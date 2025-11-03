@@ -11,6 +11,7 @@ from restconf.command_groups.base import CommandGroup
 from restconf.connection_manager import ConnectionManager
 from restconf.errors import RestconfConnectionError, RestconfHTTPError
 from restconf.services.connection import ConnectionResult, ConnectionService
+from infrastructure.messaging.rabbitmq import RabbitMQClient
 from infrastructure.mongodb.router_store import MongoRouterStore
 from utils.embeds import create_success_embed, create_error_embed, create_info_embed
 from utils.logger import get_logger
@@ -22,6 +23,7 @@ def _build_connect_command(
     connection_manager: ConnectionManager,
     connection_service: ConnectionService,
     router_store: Optional[MongoRouterStore],
+    message_client: Optional[RabbitMQClient],
 ) -> app_commands.Command:
     @app_commands.command(name="connect", description="Connect to a router or show current connection")
     @app_commands.describe(
@@ -94,6 +96,25 @@ def _build_connect_command(
                         guild_id,
                         result.host,
                         store_error,
+                    )
+
+            if message_client and guild_id is not None:
+                try:
+                    await message_client.publish_event(
+                        "router.connection.success",
+                        {
+                            "guild_id": guild_id,
+                            "ip": result.host,
+                            "hostname": result.hostname,
+                            "username": username,
+                        },
+                    )
+                except Exception as publish_error:  # pragma: no cover - best effort logging
+                    _logger.warning(
+                        "Failed to publish connection event for guild %s (%s): %s",
+                        guild_id,
+                        result.host,
+                        publish_error,
                     )
 
             description = (
@@ -173,6 +194,7 @@ def _build_router_list_command(
     connection_manager: ConnectionManager,
     connection_service: ConnectionService,
     router_store: Optional[MongoRouterStore],
+    message_client: Optional[RabbitMQClient],
 ) -> app_commands.Command:
     @app_commands.command(
         name="get-router-list",
@@ -294,6 +316,25 @@ def _build_router_list_command(
             )
             await interaction.followup.send(embed=embed)
 
+            if message_client:
+                try:
+                    await message_client.publish_event(
+                        "router.connection.switched",
+                        {
+                            "guild_id": guild_id,
+                            "ip": result.host,
+                            "hostname": result.hostname,
+                            "username": stored_username,
+                        },
+                    )
+                except Exception as publish_error:  # pragma: no cover - best effort logging
+                    _logger.warning(
+                        "Failed to publish router switch event for guild %s (%s): %s",
+                        guild_id,
+                        stored_ip,
+                        publish_error,
+                    )
+
         except RestconfConnectionError as e:
             embed = create_error_embed(
                 title="❌ Connection Failed",
@@ -368,10 +409,11 @@ class ConnectionCommandGroup(CommandGroup):
         connection_manager: ConnectionManager,
         connection_service: ConnectionService,
         router_store: Optional[MongoRouterStore] = None,
+        message_client: Optional[RabbitMQClient] = None,
     ) -> None:
         commands: Sequence[app_commands.Command] = [
-            _build_connect_command(connection_manager, connection_service, router_store),
+            _build_connect_command(connection_manager, connection_service, router_store, message_client),
             _build_disconnect_command(connection_service),
-            _build_router_list_command(connection_manager, connection_service, router_store),
+            _build_router_list_command(connection_manager, connection_service, router_store, message_client),
         ]
         super().__init__(commands)

@@ -5,6 +5,7 @@ from .device import DeviceCommandGroup
 from .routing import RoutingCommandGroup
 from .connection import ConnectionCommandGroup
 from .config import ConfigCommandGroup
+from .task import TaskCommandGroup
 
 __all__ = [
     "InterfaceCommandGroup",
@@ -12,4 +13,5 @@ __all__ = [
     "RoutingCommandGroup",
     "ConnectionCommandGroup",
     "ConfigCommandGroup",
+    "TaskCommandGroup",
 ]

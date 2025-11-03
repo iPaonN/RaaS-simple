@@ -24,6 +24,7 @@ services:
       - ./logs:/app/logs
     depends_on:
       - mongodb
+      - rabbitmq
     networks:
       - bot-network
     
@@ -52,6 +53,35 @@ services:
       - mongodb_data:/data/db
     ports:
       - "27017:27017"  # Only expose if you need external dev access
+    networks:
+      - bot-network
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: femrouter-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - bot-network
+
+  router-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: femrouter-worker:latest
+    container_name: femrouter-worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      - rabbitmq
+      - mongodb
+    command: ["python", "workers/router_event_worker.py"]
     networks:
       - bot-network
 

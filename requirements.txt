@@ -6,3 +6,4 @@ netmiko>=4.0.0
 motor>=3.7.1
 pymongo>=4.15.3
 dnspython>=2.8.0
+aio-pika>=9.4.1
