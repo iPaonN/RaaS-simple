@@ -27,22 +27,24 @@ class RoutingService(RestconfDomainService):
         """Configure a static route on the target device."""
 
         dotted_mask, cidr = self._normalize_netmask(netmask)
+        endpoint = (
+            "Cisco-IOS-XE-native:native/ip/route/ip-route-interface-forwarding-list="
+            f"{prefix},{dotted_mask}"
+        )
         body = {
-            "Cisco-IOS-XE-native:route": {
-                "ip-route-interface-forwarding-list": [
-                    {
-                        "prefix": prefix,
-                        "mask": dotted_mask,
-                        "fwd-list": [
-                            {
-                                "fwd": next_hop,
-                            }
-                        ],
-                    }
-                ]
-            }
+            "Cisco-IOS-XE-native:ip-route-interface-forwarding-list": [
+                {
+                    "prefix": prefix,
+                    "mask": dotted_mask,
+                    "fwd-list": [
+                        {
+                            "fwd": next_hop,
+                        }
+                    ],
+                }
+            ]
         }
-        await self.client.post("Cisco-IOS-XE-native:native/ip/route", body)
+        await self.client.put(endpoint, body)
         display_prefix = f"{prefix}/{cidr}" if cidr else prefix
         return StaticRoute(prefix=display_prefix, next_hop=next_hop)
 

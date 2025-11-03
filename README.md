@@ -10,8 +10,8 @@ A modular Discord automation platform for router management, built with `discord
 - ⚙️ Environment-based configuration
 - 📝 Logging system
 - 🔒 Permission checks
-- 🧱 Layered architecture (core/domain/application/infrastructure)
-- 👷 Dual entrypoints (`bot.py` for Discord, `worker.py` for background jobs)
+- 🧱 Domain-driven design with dedicated infrastructure adapters
+- 👷 Background worker processes (RabbitMQ-driven)
 - 🌐 RESTCONF API integration for Cisco CSR1000v
 - 🎮 Fun commands & ⚖️ moderation tools
 - 📊 Server/user info commands
@@ -64,15 +64,13 @@ python bot.py
 ```
 femrouter/
 ├── bot.py                       # Discord bot entrypoint
-├── worker.py                    # Background worker entrypoint
-├── core/                        # Shared primitives (bot, db/queue abstractions)
 ├── domain/                      # Entities, repositories, services
-├── application/                 # DTOs, use-cases, handlers
 ├── infrastructure/              # MongoDB & RabbitMQ adapters
 ├── cogs/                        # Discord command groups (incl. RESTCONF)
 ├── restconf/                    # Existing RESTCONF client/commands/presenters
 ├── config/                      # Settings, constants, logging config
 ├── utils/                       # Helpers (embeds, checks, decorators)
+├── workers/                     # Queue consumers and background processors
 ├── tests/                       # Unit & integration test scaffold
 ├── requirements.txt             # Python dependencies
 ├── docker-compose.yml           # Local stack (db/queue) scaffolding
