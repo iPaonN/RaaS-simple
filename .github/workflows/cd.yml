@@ -29,7 +29,7 @@ jobs:
       RABBIT_VOLUME_NAME: ${{ format('femrouter-rabbitmq-data-{0}', github.ref_name) }}
       IMAGE_REPOSITORY_BOT: ${{ format('{0}/femrouter-bot', secrets.DOCKERHUB_USERNAME) }}
       IMAGE_REPOSITORY_WORKER: ${{ format('{0}/femrouter-worker', secrets.DOCKERHUB_USERNAME) }}
-      IMAGE_TAG: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref_name }}
+      IMAGE_TAG: latest
     
     steps:
       - name: Log in to Docker Hub
