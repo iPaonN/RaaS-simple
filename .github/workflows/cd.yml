@@ -144,6 +144,22 @@ jobs:
             -p 0:15672 \
             rabbitmq:3.13-management
 
+      - name: Wait for RabbitMQ readiness
+        run: |
+          for attempt in $(seq 1 12); do
+            if docker ps --filter "name=${RABBIT_CONTAINER_NAME}" --filter "status=running" --quiet | grep -q .; then
+              if docker exec "${RABBIT_CONTAINER_NAME}" rabbitmq-diagnostics ping >/dev/null 2>&1; then
+                echo "RabbitMQ is ready"
+                exit 0
+              fi
+            fi
+            echo "RabbitMQ not ready yet (attempt ${attempt}/12); retrying in 5s"
+            sleep 5
+          done
+          echo "RabbitMQ failed to become ready" >&2
+          docker logs "${RABBIT_CONTAINER_NAME}" >&2 || true
+          exit 1
+
       - name: Run new container
         run: |
           docker run -d \
