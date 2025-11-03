@@ -137,7 +137,20 @@ def _build_backup_command(
     ) -> None:
         await interaction.response.defer(thinking=True)
 
-        if router_store is None:
+        bot_instance = interaction.client
+        current_router_store = router_store or getattr(bot_instance, "router_store", None)
+        current_task_service = task_service or getattr(bot_instance, "task_service", None)
+        current_message_client = message_client or getattr(bot_instance, "rabbitmq_client", None)
+        current_task_queue = task_queue_name or getattr(bot_instance, "task_queue_name", None)
+
+        ensure_rabbit = getattr(bot_instance, "ensure_rabbitmq", None)
+        if callable(ensure_rabbit) and (current_message_client is None or not current_task_queue):
+            if await ensure_rabbit():  # pragma: no cover - depends on runtime state
+                current_task_service = current_task_service or getattr(bot_instance, "task_service", None)
+                current_message_client = getattr(bot_instance, "rabbitmq_client", None)
+                current_task_queue = getattr(bot_instance, "task_queue_name", None)
+
+        if current_router_store is None:
             await interaction.followup.send(
                 embed=create_error_embed(
                     title="❌ Router Storage Unavailable",
@@ -147,7 +160,7 @@ def _build_backup_command(
             )
             return
 
-        if task_service is None or message_client is None or not task_queue_name:
+        if current_task_service is None or current_message_client is None or not current_task_queue:
             await interaction.followup.send(
                 embed=create_error_embed(
                     title="❌ Task Queue Unavailable",
@@ -180,7 +193,7 @@ def _build_backup_command(
             return
 
         try:
-            routers = await router_store.list_routers(interaction.guild_id)
+            routers = await current_router_store.list_routers(interaction.guild_id)
         except Exception as exc:  # pragma: no cover - datastore error path
             _logger.error("Failed to list routers for guild %s: %s", interaction.guild_id, exc)
             await interaction.followup.send(
@@ -234,7 +247,7 @@ def _build_backup_command(
         )
 
         try:
-            queued_task = await task_service.queue_task(task)
+            queued_task = await current_task_service.queue_task(task)
         except Exception as exc:  # pragma: no cover - datastore error path
             _logger.error("Failed to persist task %s: %s", task.id, exc)
             await interaction.followup.send(
@@ -255,15 +268,15 @@ def _build_backup_command(
         }
 
         try:
-            await message_client.publish_event(
+            await current_message_client.publish_event(
                 "task.router.backup",
                 payload,
-                queue_name=task_queue_name,
+                queue_name=current_task_queue,
             )
         except Exception as exc:  # pragma: no cover - messaging failure path
             _logger.error("Failed to publish backup task %s: %s", queued_task.id, exc)
             try:
-                await task_service.mark_failed(queued_task, "Queue dispatch failed")
+                await current_task_service.mark_failed(queued_task, "Queue dispatch failed")
             except Exception as mark_exc:  # pragma: no cover - best effort cleanup
                 _logger.warning("Failed to mark task %s as failed: %s", queued_task.id, mark_exc)
             await interaction.followup.send(
@@ -290,7 +303,8 @@ def _build_backup_command(
         interaction: discord.Interaction,
         current: str,
     ) -> list[app_commands.Choice[str]]:
-        return await _build_router_choices(router_store, interaction.guild_id, current)
+        current_router_store = router_store or getattr(interaction.client, "router_store", None)
+        return await _build_router_choices(current_router_store, interaction.guild_id, current)
 
     return command
 
@@ -316,7 +330,20 @@ def _build_health_check_command(
     ) -> None:
         await interaction.response.defer(thinking=True)
 
-        if router_store is None:
+        bot_instance = interaction.client
+        current_router_store = router_store or getattr(bot_instance, "router_store", None)
+        current_task_service = task_service or getattr(bot_instance, "task_service", None)
+        current_message_client = message_client or getattr(bot_instance, "rabbitmq_client", None)
+        current_task_queue = task_queue_name or getattr(bot_instance, "task_queue_name", None)
+
+        ensure_rabbit = getattr(bot_instance, "ensure_rabbitmq", None)
+        if callable(ensure_rabbit) and (current_message_client is None or not current_task_queue):
+            if await ensure_rabbit():  # pragma: no cover - depends on runtime state
+                current_task_service = current_task_service or getattr(bot_instance, "task_service", None)
+                current_message_client = getattr(bot_instance, "rabbitmq_client", None)
+                current_task_queue = getattr(bot_instance, "task_queue_name", None)
+
+        if current_router_store is None:
             await interaction.followup.send(
                 embed=create_error_embed(
                     title="❌ Router Storage Unavailable",
@@ -326,7 +353,7 @@ def _build_health_check_command(
             )
             return
 
-        if task_service is None or message_client is None or not task_queue_name:
+        if current_task_service is None or current_message_client is None or not current_task_queue:
             await interaction.followup.send(
                 embed=create_error_embed(
                     title="❌ Task Queue Unavailable",
@@ -359,7 +386,7 @@ def _build_health_check_command(
             return
 
         try:
-            routers = await router_store.list_routers(interaction.guild_id)
+            routers = await current_router_store.list_routers(interaction.guild_id)
         except Exception as exc:  # pragma: no cover - datastore error path
             _logger.error("Failed to list routers for guild %s: %s", interaction.guild_id, exc)
             await interaction.followup.send(
@@ -414,7 +441,7 @@ def _build_health_check_command(
         )
 
         try:
-            queued_task = await task_service.queue_task(task)
+            queued_task = await current_task_service.queue_task(task)
         except Exception as exc:  # pragma: no cover - datastore error path
             _logger.error("Failed to persist task %s: %s", task.id, exc)
             await interaction.followup.send(
@@ -435,15 +462,15 @@ def _build_health_check_command(
         }
 
         try:
-            await message_client.publish_event(
+            await current_message_client.publish_event(
                 "task.router.health",
                 payload,
-                queue_name=task_queue_name,
+                queue_name=current_task_queue,
             )
         except Exception as exc:  # pragma: no cover - messaging failure path
             _logger.error("Failed to publish health task %s: %s", queued_task.id, exc)
             try:
-                await task_service.mark_failed(queued_task, "Queue dispatch failed")
+                await current_task_service.mark_failed(queued_task, "Queue dispatch failed")
             except Exception as mark_exc:  # pragma: no cover - best effort cleanup
                 _logger.warning("Failed to mark task %s as failed: %s", queued_task.id, mark_exc)
             await interaction.followup.send(
@@ -470,7 +497,8 @@ def _build_health_check_command(
         interaction: discord.Interaction,
         current: str,
     ) -> list[app_commands.Choice[str]]:
-        return await _build_router_choices(router_store, interaction.guild_id, current)
+        current_router_store = router_store or getattr(interaction.client, "router_store", None)
+        return await _build_router_choices(current_router_store, interaction.guild_id, current)
 
     return command
 
@@ -530,7 +558,8 @@ def _build_task_status_command(task_service: Optional[TaskService]) -> app_comma
         interaction: discord.Interaction,
         current: str,
     ) -> list[app_commands.Choice[str]]:
-        return await _build_task_choices(task_service, interaction.guild_id, current)
+        current_task_service = task_service or getattr(interaction.client, "task_service", None)
+        return await _build_task_choices(current_task_service, interaction.guild_id, current)
 
     return command
 

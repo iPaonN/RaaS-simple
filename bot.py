@@ -147,6 +147,12 @@ class FemRouterBot(commands.Bot):
             return
 
         try:
+            if self.rabbitmq_client is not None:
+                try:
+                    await self.rabbitmq_client.close()
+                except Exception as exc:  # pragma: no cover - best effort cleanup
+                    logger.debug("Failed to close existing RabbitMQ client: %s", exc)
+
             client = RabbitMQClient(RABBITMQ_URI, RABBITMQ_QUEUE)
             await client.connect()
             self.rabbitmq_client = client
@@ -160,6 +166,15 @@ class FemRouterBot(commands.Bot):
             logger.error("Failed to initialise RabbitMQ client: %s", exc)
             self.rabbitmq_client = None
             self.task_queue_name = None
+
+    async def ensure_rabbitmq(self) -> bool:
+        """Ensure the RabbitMQ client is connected, retrying if necessary."""
+
+        if self.rabbitmq_client is not None and self.task_queue_name:
+            return True
+
+        await self._initialise_rabbitmq()
+        return self.rabbitmq_client is not None and bool(self.task_queue_name)
 
     async def on_ready(self) -> None:
         """Called when bot is ready"""
