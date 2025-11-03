@@ -15,7 +15,15 @@ class TaskService:
         self._repository = repository
 
     async def queue_task(self, task: Task) -> Task:
+        task.status = TaskStatus.PENDING
+        task.created_at = datetime.utcnow()
+        task.updated_at = task.created_at
         return await self._repository.add(task)
+
+    async def mark_running(self, task: Task) -> Task:
+        task.status = TaskStatus.RUNNING
+        task.updated_at = datetime.utcnow()
+        return await self._repository.update(task)
 
     async def mark_completed(self, task: Task, result: str) -> Task:
         task.status = TaskStatus.COMPLETED
@@ -28,3 +36,6 @@ class TaskService:
         task.result = error
         task.updated_at = datetime.utcnow()
         return await self._repository.update(task)
+
+    async def get(self, task_id: str) -> Task | None:
+        return await self._repository.get(task_id)

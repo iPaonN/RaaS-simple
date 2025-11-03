@@ -10,7 +10,8 @@ on:
 
 env:
   REGISTRY: docker.io
-  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/femrouter
+  IMAGE_BOT: femrouter-bot
+  IMAGE_WORKER: femrouter-worker
 
 jobs:
   build-and-push:
@@ -33,11 +34,24 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Prepare image names
+        id: image
+        run: |
+          echo "bot=${REGISTRY}/${DOCKERHUB_USERNAME}/${IMAGE_BOT}" >> "$GITHUB_OUTPUT"
+          echo "worker=${REGISTRY}/${DOCKERHUB_USERNAME}/${IMAGE_WORKER}" >> "$GITHUB_OUTPUT"
+        env:
+          REGISTRY: ${{ env.REGISTRY }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          IMAGE_BOT: ${{ env.IMAGE_BOT }}
+          IMAGE_WORKER: ${{ env.IMAGE_WORKER }}
+
       - name: Extract metadata (tags, labels)
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: |
+            ${{ steps.image.outputs.bot }}
+            ${{ steps.image.outputs.worker }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr
