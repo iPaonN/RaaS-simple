@@ -74,21 +74,41 @@ jobs:
           RABBITMQ_DEFAULT_USER: ${{ secrets.RABBITMQ_DEFAULT_USER }}
           RABBITMQ_DEFAULT_PASS: ${{ secrets.RABBITMQ_DEFAULT_PASS }}
         run: |
-          echo "DISCORD_TOKEN=${DISCORD_TOKEN}" > "${ENV_FILE}"
-          echo "DEV_GUILD_ID=${DEV_GUILD_ID}" >> "${ENV_FILE}"
-          echo "PREFIX=!" >> "${ENV_FILE}"
-          echo "LOG_LEVEL=INFO" >> "${ENV_FILE}"
-          echo "MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME}" >> "${ENV_FILE}"
-          echo "MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}" >> "${ENV_FILE}"
-          echo "MONGODB_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@${MONGO_CONTAINER_NAME}:27017/femrouter?authSource=admin" >> "${ENV_FILE}"
-          echo "MONGODB_DB=femrouter" >> "${ENV_FILE}"
-          echo "MONGODB_ROUTER_COLLECTION=routers" >> "${ENV_FILE}"
-          echo "MONGODB_TASK_COLLECTION=tasks" >> "${ENV_FILE}"
-          echo "RABBITMQ_URI=amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@${RABBIT_CONTAINER_NAME}:5672/" >> "${ENV_FILE}"
-          echo "RABBITMQ_QUEUE=router_events" >> "${ENV_FILE}"
-          echo "RABBITMQ_TASK_QUEUE=router_tasks" >> "${ENV_FILE}"
-          echo "RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER}" >> "${ENV_FILE}"
-          echo "RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS}" >> "${ENV_FILE}"
+          python - <<'PY'
+          import os
+          from urllib.parse import quote
+
+          env_path = os.environ["ENV_FILE"]
+          user = os.environ.get("RABBITMQ_DEFAULT_USER", "")
+          password = os.environ.get("RABBITMQ_DEFAULT_PASS", "")
+          host = os.environ.get("RABBIT_CONTAINER_NAME", "rabbitmq")
+
+          lines = [
+            ("DISCORD_TOKEN", os.environ.get("DISCORD_TOKEN", "")),
+            ("DEV_GUILD_ID", os.environ.get("DEV_GUILD_ID", "")),
+            ("PREFIX", "!"),
+            ("LOG_LEVEL", "INFO"),
+            ("MONGO_INITDB_ROOT_USERNAME", os.environ.get("MONGO_INITDB_ROOT_USERNAME", "")),
+            ("MONGO_INITDB_ROOT_PASSWORD", os.environ.get("MONGO_INITDB_ROOT_PASSWORD", "")),
+            (
+              "MONGODB_URI",
+              f"mongodb://{os.environ.get('MONGO_INITDB_ROOT_USERNAME','')}:{os.environ.get('MONGO_INITDB_ROOT_PASSWORD','')}@"
+              f"{os.environ.get('MONGO_CONTAINER_NAME','mongodb')}:27017/femrouter?authSource=admin",
+            ),
+            ("MONGODB_DB", "femrouter"),
+            ("MONGODB_ROUTER_COLLECTION", "routers"),
+            ("MONGODB_TASK_COLLECTION", "tasks"),
+            ("RABBITMQ_QUEUE", "router_events"),
+            ("RABBITMQ_TASK_QUEUE", "router_tasks"),
+            ("RABBITMQ_DEFAULT_USER", user),
+            ("RABBITMQ_DEFAULT_PASS", password),
+            ("RABBITMQ_URI", f"amqp://{quote(user)}:{quote(password)}@{host}:5672/"),
+          ]
+
+          with open(env_path, "w", encoding="utf-8") as env_file:
+            for key, value in lines:
+              env_file.write(f"{key}={value}\n")
+          PY
       
       - name: Verify .env file was created
         run: |
