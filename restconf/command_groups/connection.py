@@ -323,6 +323,42 @@ def _build_router_list_command(
             )
             await interaction.followup.send(embed=embed)
 
+    @command.autocomplete("target")
+    async def target_autocomplete(
+        interaction: discord.Interaction,
+        current: str,
+    ) -> list[app_commands.Choice[str]]:
+        if router_store is None or interaction.guild_id is None:
+            return []
+
+        try:
+            routers = await router_store.list_routers(interaction.guild_id)
+        except Exception as exc:  # pragma: no cover - best effort, avoid failing autocomplete
+            _logger.warning(
+                "Failed to fetch routers for autocomplete (guild=%s): %s",
+                interaction.guild_id,
+                exc,
+            )
+            return []
+
+        normalized = current.lower()
+        choices: list[app_commands.Choice[str]] = []
+        for router in routers:
+            name = router.get("name") or router.get("hostname") or router.get("ip")
+            ip = router.get("ip")
+            if not ip or not name:
+                continue
+
+            if normalized and normalized not in name.lower() and normalized not in ip.lower():
+                continue
+
+            label = f"{name} ({ip})"
+            choices.append(app_commands.Choice(name=label[:100], value=ip))
+            if len(choices) >= 25:
+                break
+
+        return choices
+
     return command
 
 
