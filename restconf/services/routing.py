@@ -32,15 +32,17 @@ class RoutingService(RestconfDomainService):
             f"{prefix},{dotted_mask}"
         )
         body = {
-            "Cisco-IOS-XE-native:ip-route-interface-forwarding-list": {
-                "prefix": prefix,
-                "mask": dotted_mask,
-                "fwd-list": [
-                    {
-                        "fwd": next_hop,
-                    }
-                ],
-            }
+            "Cisco-IOS-XE-native:ip-route-interface-forwarding-list": [
+                {
+                    "prefix": prefix,
+                    "mask": dotted_mask,
+                    "fwd-list": [
+                        {
+                            "fwd": next_hop,
+                        }
+                    ],
+                }
+            ]
         }
         await self.client.put(endpoint, body)
         display_prefix = f"{prefix}/{cidr}" if cidr else prefix
