@@ -10,7 +10,7 @@ on:
 
 env:
   REGISTRY: docker.io
-  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/femrouter-rizzler
+  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/femrouter
 
 jobs:
   build-and-push:
