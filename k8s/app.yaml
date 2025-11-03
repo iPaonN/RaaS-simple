@@ -22,7 +22,7 @@ spec:
         - name: regcred
       containers:
         - name: bot
-          image: docker.io/ipaonn/femrouter-bot:latest
+          image: docker.io/ypao/femrouter-bot:latest
           imagePullPolicy: Always
           envFrom:
             - configMapRef:
@@ -61,7 +61,7 @@ spec:
         - name: regcred
       containers:
         - name: worker
-          image: docker.io/ipaonn/femrouter-worker:latest
+          image: docker.io/ypao/femrouter-worker:latest
           imagePullPolicy: Always
           command: ["python", "workers/router_event_worker.py"]
           envFrom:
