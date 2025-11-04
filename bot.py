@@ -15,13 +15,9 @@ from config.settings import (
     MONGODB_ROUTER_COLLECTION,
     MONGODB_TASK_COLLECTION,
     MONGODB_URI,
-    RABBITMQ_QUEUE,
-    RABBITMQ_TASK_QUEUE,
-    RABBITMQ_URI,
     PREFIX,
     TOKEN,
 )
-from infrastructure.messaging.rabbitmq import RabbitMQClient
 from infrastructure.mongodb.router_store import MongoRouterStore
 from infrastructure.mongodb.repositories import MongoTaskRepository
 from domain.services.task_service import TaskService
@@ -50,16 +46,13 @@ class FemRouterBot(commands.Bot):
         )
         self.mongo_client: AsyncIOMotorClient | None = None
         self.router_store: MongoRouterStore | None = None
-        self.rabbitmq_client: RabbitMQClient | None = None
         self.task_service: TaskService | None = None
-        self.task_queue_name: str | None = None
     
     async def setup_hook(self) -> None:
         """Load all cogs from the cogs directory"""
         logger.info("Loading cogs...")
 
         self._initialise_mongo()
-        await self._initialise_rabbitmq()
         
         # Auto-load all cogs from the cogs directory
         cogs_dir = Path("./cogs")
@@ -136,45 +129,6 @@ class FemRouterBot(commands.Bot):
             self.mongo_client = None
             self.router_store = None
             self.task_service = None
-
-    async def _initialise_rabbitmq(self) -> None:
-        """Initialise RabbitMQ client if configuration is provided."""
-
-        if not RABBITMQ_URI:
-            logger.info("RABBITMQ_URI not set; message queue features disabled")
-            self.rabbitmq_client = None
-            self.task_queue_name = None
-            return
-
-        try:
-            if self.rabbitmq_client is not None:
-                try:
-                    await self.rabbitmq_client.close()
-                except Exception as exc:  # pragma: no cover - best effort cleanup
-                    logger.debug("Failed to close existing RabbitMQ client: %s", exc)
-
-            client = RabbitMQClient(RABBITMQ_URI, RABBITMQ_QUEUE)
-            await client.connect()
-            self.rabbitmq_client = client
-            self.task_queue_name = RABBITMQ_TASK_QUEUE
-            logger.info(
-                "RabbitMQ initialised (events=%s, tasks=%s)",
-                RABBITMQ_QUEUE,
-                self.task_queue_name,
-            )
-        except Exception as exc:  # pragma: no cover - connection failure path
-            logger.error("Failed to initialise RabbitMQ client: %s", exc)
-            self.rabbitmq_client = None
-            self.task_queue_name = None
-
-    async def ensure_rabbitmq(self) -> bool:
-        """Ensure the RabbitMQ client is connected, retrying if necessary."""
-
-        if self.rabbitmq_client is not None and self.task_queue_name:
-            return True
-
-        await self._initialise_rabbitmq()
-        return self.rabbitmq_client is not None and bool(self.task_queue_name)
 
     async def on_ready(self) -> None:
         """Called when bot is ready"""
@@ -255,8 +209,6 @@ class FemRouterBot(commands.Bot):
     async def close(self) -> None:
         if self.mongo_client:
             self.mongo_client.close()
-        if self.rabbitmq_client:
-            await self.rabbitmq_client.close()
         await super().close()
 
 

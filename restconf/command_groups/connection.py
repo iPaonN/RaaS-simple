@@ -5,7 +5,6 @@ from typing import Optional, Sequence
 
 from discord import app_commands
 
-from infrastructure.messaging.rabbitmq import RabbitMQClient
 from infrastructure.mongodb.router_store import MongoRouterStore
 from restconf.command_groups.base import CommandGroup
 from restconf.connection_manager import ConnectionManager
@@ -24,11 +23,10 @@ class ConnectionCommandGroup(CommandGroup):
         connection_manager: ConnectionManager,
         connection_service: ConnectionService,
         router_store: Optional[MongoRouterStore] = None,
-        message_client: Optional[RabbitMQClient] = None,
     ) -> None:
         commands: Sequence[app_commands.Command] = [
-            build_connect_command(connection_manager, connection_service, router_store, message_client),
+            build_connect_command(connection_manager, connection_service, router_store),
             build_disconnect_command(connection_service),
-            build_router_list_command(connection_manager, connection_service, router_store, message_client),
+            build_router_list_command(connection_manager, connection_service, router_store),
         ]
         super().__init__(commands)

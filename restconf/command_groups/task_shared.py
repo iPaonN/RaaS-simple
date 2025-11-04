@@ -1,7 +1,6 @@
 """Shared helpers for RESTCONF task command builders."""
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Optional
 
 import discord
@@ -9,20 +8,11 @@ from discord import app_commands
 
 from domain.entities.task import TaskStatus
 from domain.services.task_service import TaskService
-from infrastructure.messaging.rabbitmq import RabbitMQClient
 from infrastructure.mongodb.router_store import MongoRouterStore
 from utils.embeds import create_error_embed
 from utils.logger import get_logger
 
 _logger = get_logger(__name__)
-
-
-@dataclass
-class TaskDependencies:
-    router_store: MongoRouterStore
-    task_service: TaskService
-    message_client: RabbitMQClient
-    task_queue_name: str
 
 
 async def build_router_choices(
@@ -122,63 +112,3 @@ def select_router_by_identifier(
         if normalized in {ip, hostname, name}:
             return router
     return None
-
-
-async def resolve_task_dependencies(
-    interaction: discord.Interaction,
-    router_store: Optional[MongoRouterStore],
-    task_service: Optional[TaskService],
-    message_client: Optional[RabbitMQClient],
-    task_queue_name: Optional[str],
-) -> Optional[TaskDependencies]:
-    """Resolve task dependencies from injected values or the bot instance."""
-
-    bot_instance = interaction.client
-    current_router_store = router_store or getattr(bot_instance, "router_store", None)
-    current_task_service = task_service or getattr(bot_instance, "task_service", None)
-    current_message_client = message_client or getattr(bot_instance, "rabbitmq_client", None)
-    current_task_queue = task_queue_name or getattr(bot_instance, "task_queue_name", None)
-
-    ensure_rabbit = getattr(bot_instance, "ensure_rabbitmq", None)
-    if callable(ensure_rabbit) and (current_message_client is None or not current_task_queue):
-        if await ensure_rabbit():  # pragma: no cover - depends on runtime state
-            current_task_service = current_task_service or getattr(bot_instance, "task_service", None)
-            current_message_client = getattr(bot_instance, "rabbitmq_client", None)
-            current_task_queue = getattr(bot_instance, "task_queue_name", None)
-
-    if current_router_store is None:
-        await interaction.followup.send(
-            embed=create_error_embed(
-                title="❌ Router Storage Unavailable",
-                description="MongoDB is required to queue router tasks.",
-            ),
-            ephemeral=True,
-        )
-        return None
-
-    if current_task_service is None or current_message_client is None or not current_task_queue:
-        await interaction.followup.send(
-            embed=create_error_embed(
-                title="❌ Task Queue Unavailable",
-                description="RabbitMQ must be configured before tasks can be queued.",
-            ),
-            ephemeral=True,
-        )
-        return None
-
-    if interaction.guild_id is None or interaction.channel_id is None:
-        await interaction.followup.send(
-            embed=create_error_embed(
-                title="❌ Server Only",
-                description="This command is only available inside a Discord server channel.",
-            ),
-            ephemeral=True,
-        )
-        return None
-
-    return TaskDependencies(
-        router_store=current_router_store,
-        task_service=current_task_service,
-        message_client=current_message_client,
-        task_queue_name=current_task_queue,
-    )

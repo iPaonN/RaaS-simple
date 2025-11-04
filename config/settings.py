@@ -23,11 +23,6 @@ MONGODB_DB = os.getenv('MONGODB_DB', 'femrouter')
 MONGODB_ROUTER_COLLECTION = os.getenv('MONGODB_ROUTER_COLLECTION', 'routers')
 MONGODB_TASK_COLLECTION = os.getenv('MONGODB_TASK_COLLECTION', 'tasks')
 
-# RabbitMQ (optional)
-RABBITMQ_URI = os.getenv('RABBITMQ_URI')
-RABBITMQ_QUEUE = os.getenv('RABBITMQ_QUEUE', 'router_events')
-RABBITMQ_TASK_QUEUE = os.getenv('RABBITMQ_TASK_QUEUE', 'router_tasks')
-
 # Router monitor (optional)
 ROUTER_MONITOR_INTERVAL = int(os.getenv('ROUTER_MONITOR_INTERVAL', '60'))
 ROUTER_MONITOR_TIMEOUT = float(os.getenv('ROUTER_MONITOR_TIMEOUT', '5'))

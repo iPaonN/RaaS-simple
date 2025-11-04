@@ -9,15 +9,12 @@ from discord import app_commands
 
 from domain.entities.task import Task
 from domain.services.task_service import TaskService
-from infrastructure.messaging.rabbitmq import RabbitMQClient
 from infrastructure.mongodb.router_store import MongoRouterStore
 from utils.embeds import create_error_embed, create_success_embed
 from utils.logger import get_logger
 
 from .task_shared import (
-    TaskDependencies,
     build_router_choices,
-    resolve_task_dependencies,
     select_router_by_identifier,
 )
 
@@ -27,8 +24,6 @@ _logger = get_logger(__name__)
 def build_health_check_command(
     router_store: Optional[MongoRouterStore],
     task_service: Optional[TaskService],
-    message_client: Optional[RabbitMQClient],
-    task_queue_name: Optional[str],
 ) -> app_commands.Command:
     """Create the `/router-health` command definition."""
 
@@ -47,15 +42,18 @@ def build_health_check_command(
     ) -> None:
         await interaction.response.defer(thinking=True)
 
-        dependencies: Optional[TaskDependencies] = await resolve_task_dependencies(
-            interaction,
-            router_store,
-            task_service,
-            message_client,
-            task_queue_name,
+        # RabbitMQ has been removed - this feature is not available
+        await interaction.followup.send(
+            embed=create_error_embed(
+                title="❌ Feature Not Available",
+                description=(
+                    "Background task processing requires RabbitMQ, which has been disabled.\n\n"
+                    "You can still use real-time RESTCONF commands like `/get-interfaces` for immediate checks."
+                ),
+            ),
+            ephemeral=True,
         )
-        if dependencies is None:
-            return
+        return
 
         note_text = note.strip() if note else None
         if note_text and len(note_text) > 200:

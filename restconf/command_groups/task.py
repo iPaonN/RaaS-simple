@@ -6,7 +6,6 @@ from typing import Optional, Sequence
 from discord import app_commands
 
 from domain.services.task_service import TaskService
-from infrastructure.messaging.rabbitmq import RabbitMQClient
 from infrastructure.mongodb.router_store import MongoRouterStore
 from restconf.command_groups.base import CommandGroup
 
@@ -22,12 +21,10 @@ class TaskCommandGroup(CommandGroup):
         self,
         router_store: Optional[MongoRouterStore],
         task_service: Optional[TaskService],
-        message_client: Optional[RabbitMQClient],
-        task_queue_name: Optional[str],
     ) -> None:
         commands: Sequence[app_commands.Command] = [
-            build_backup_command(router_store, task_service, message_client, task_queue_name),
-            build_health_check_command(router_store, task_service, message_client, task_queue_name),
+            build_backup_command(router_store, task_service),
+            build_health_check_command(router_store, task_service),
             build_task_status_command(task_service),
         ]
         super().__init__(commands)

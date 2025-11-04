@@ -16,7 +16,6 @@ from restconf.client import RestconfClient
 from restconf.connection_manager import ConnectionManager
 from restconf.service import RestconfService
 from restconf.services.connection import ConnectionService
-from infrastructure.messaging.rabbitmq import RabbitMQClient
 from infrastructure.mongodb.router_store import MongoRouterStore
 from domain.services.task_service import TaskService
 from utils.logger import get_logger
@@ -33,9 +32,7 @@ class RestconfCog(commands.Cog):
         self._connection_manager = ConnectionManager()
         self._connection_service = ConnectionService(self._connection_manager)
         self._router_store: MongoRouterStore | None = getattr(bot, "router_store", None)
-        self._rabbitmq_client: RabbitMQClient | None = getattr(bot, "rabbitmq_client", None)
         self._task_service: TaskService | None = getattr(bot, "task_service", None)
-        self._task_queue_name: str | None = getattr(bot, "task_queue_name", None)
 
     def _service_builder(self, host: str, username: str, password: str) -> RestconfService:
         client = RestconfClient(host, username, password)
@@ -57,7 +54,6 @@ class RestconfCog(commands.Cog):
                 self._connection_manager,
                 self._connection_service,
                 self._router_store,
-                self._rabbitmq_client,
             ),
             InterfaceCommandGroup(self._service_builder, self._connection_manager),
             DeviceCommandGroup(self._service_builder, self._connection_manager),
@@ -66,8 +62,6 @@ class RestconfCog(commands.Cog):
             TaskCommandGroup(
                 self._router_store,
                 self._task_service,
-                self._rabbitmq_client,
-                self._task_queue_name,
             ),
         ]
         for group in group_instances:

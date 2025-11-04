@@ -7,7 +7,6 @@ from typing import Optional
 import discord
 from discord import app_commands
 
-from infrastructure.messaging.rabbitmq import RabbitMQClient
 from infrastructure.mongodb.router_store import MongoRouterStore
 from restconf.connection_manager import ConnectionManager
 from restconf.errors import RestconfConnectionError, RestconfHTTPError
@@ -22,7 +21,6 @@ def build_connect_command(
     connection_manager: ConnectionManager,
     connection_service: ConnectionService,
     router_store: Optional[MongoRouterStore],
-    message_client: Optional[RabbitMQClient],
 ) -> app_commands.Command:
     """Build the slash command that manages router connections."""
 
@@ -96,25 +94,6 @@ def build_connect_command(
                         guild_id,
                         result.host,
                         store_error,
-                    )
-
-            if message_client and guild_id is not None:
-                try:
-                    await message_client.publish_event(
-                        "router.connection.success",
-                        {
-                            "guild_id": guild_id,
-                            "ip": result.host,
-                            "hostname": result.hostname,
-                            "username": username,
-                        },
-                    )
-                except Exception as publish_error:  # pragma: no cover - best effort logging
-                    _logger.warning(
-                        "Failed to publish connection event for guild %s (%s): %s",
-                        guild_id,
-                        result.host,
-                        publish_error,
                     )
 
             description = (
