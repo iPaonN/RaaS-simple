@@ -6,8 +6,8 @@ from typing import Any, Awaitable, Callable, Optional
 
 from netmiko_client import ConfigService
 
-from router_event_dependencies import WorkerDependencies
-from router_event_helpers import load_router_credentials
+from .dependencies import WorkerDependencies
+from .helpers import load_router_credentials
 from utils.logger import get_logger
 
 _logger = get_logger(__name__)

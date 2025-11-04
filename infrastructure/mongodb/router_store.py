@@ -19,6 +19,9 @@ class MongoRouterStore:
         now = datetime.utcnow()
         router = {**router, "updated_at": now}
         router.setdefault("last_checked", now)
+        router.setdefault("last_seen", None)
+        router.setdefault("status", "unknown")
+        router.setdefault("status_reason", None)
         router.setdefault("metadata", {})
 
         filter_doc = {"guild_id": router["guild_id"], "ip": router["ip"]}
@@ -34,18 +37,34 @@ class MongoRouterStore:
         cursor = self._collection.find({"guild_id": guild_id}).sort("name", 1)
         return [doc async for doc in cursor]
 
+    async def list_all_routers(self) -> list[dict[str, Any]]:
+        cursor = self._collection.find({})
+        return [doc async for doc in cursor]
+
     async def get_router(self, guild_id: int, ip: str) -> Optional[dict[str, Any]]:
         return await self._collection.find_one({"guild_id": guild_id, "ip": ip})
 
-    async def set_status(self, guild_id: int, ip: str, status: str) -> None:
+    async def set_status(
+        self,
+        guild_id: int,
+        ip: str,
+        status: str,
+        *,
+        last_seen: Optional[datetime] = None,
+        failure_reason: Optional[str] = None,
+    ) -> None:
+        update_fields: dict[str, Any] = {
+            "status": status,
+            "status_reason": failure_reason,
+            "last_checked": datetime.utcnow(),
+            "updated_at": datetime.utcnow(),
+        }
+        if last_seen is not None:
+            update_fields["last_seen"] = last_seen
+
         await self._collection.update_one(
             {"guild_id": guild_id, "ip": ip},
-            {
-                "$set": {
-                    "status": status,
-                    "updated_at": datetime.utcnow(),
-                }
-            },
+            {"$set": update_fields},
         )
 
     async def delete_router(self, guild_id: int, ip: str) -> int:

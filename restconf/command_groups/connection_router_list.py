@@ -17,6 +17,15 @@ from utils.logger import get_logger
 
 _logger = get_logger(__name__)
 
+_STATUS_EMOJI = {
+    "online": "🟢",
+    "offline": "🔴",
+    "auth_failed": "⚠️",
+    "invalid": "⚠️",
+    "error": "❗",
+    "unknown": "❔",
+}
+
 
 async def _remove_stored_router(
     router_store: MongoRouterStore,
@@ -108,7 +117,23 @@ def build_router_list_command(
                 ip = router.get("ip", "unknown")
                 username = router.get("username", "?")
                 marker = " (current)" if current_host and current_host == ip else ""
-                lines.append(f"• **{hostname}** — `{ip}` (user `{username}`){marker}")
+                status = (router.get("status") or "unknown").lower()
+                status_label = status.replace("_", " ")
+                emoji = _STATUS_EMOJI.get(status, "❔")
+                last_seen = router.get("last_seen")
+                if isinstance(last_seen, datetime):
+                    last_seen_text = last_seen.strftime("%Y-%m-%d %H:%M UTC")
+                    last_seen_fragment = f" • last seen {last_seen_text}"
+                else:
+                    last_seen_fragment = ""
+                reason = router.get("status_reason")
+                reason_fragment = f"\n   ↳ {reason}" if reason else ""
+                lines.append(
+                    (
+                        f"• {emoji} **{hostname}** — `{ip}` (user `{username}`){marker}"
+                        f" • status: {status_label}{last_seen_fragment}{reason_fragment}"
+                    )
+                )
 
             embed = create_info_embed(
                 title="🗂️ Stored Routers",

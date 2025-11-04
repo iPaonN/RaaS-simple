@@ -28,6 +28,11 @@ RABBITMQ_URI = os.getenv('RABBITMQ_URI')
 RABBITMQ_QUEUE = os.getenv('RABBITMQ_QUEUE', 'router_events')
 RABBITMQ_TASK_QUEUE = os.getenv('RABBITMQ_TASK_QUEUE', 'router_tasks')
 
+# Router monitor (optional)
+ROUTER_MONITOR_INTERVAL = int(os.getenv('ROUTER_MONITOR_INTERVAL', '60'))
+ROUTER_MONITOR_TIMEOUT = float(os.getenv('ROUTER_MONITOR_TIMEOUT', '5'))
+ROUTER_MONITOR_CONCURRENCY = int(os.getenv('ROUTER_MONITOR_CONCURRENCY', '5'))
+
 # Logging
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'DEBUG')
 

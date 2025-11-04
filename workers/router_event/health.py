@@ -6,8 +6,8 @@ from typing import Any, Optional
 from restconf.client import RestconfClient
 from restconf.service import RestconfService
 
-from router_event_dependencies import WorkerDependencies
-from router_event_helpers import load_router_credentials
+from .dependencies import WorkerDependencies
+from .helpers import load_router_credentials
 from utils.logger import get_logger
 
 _logger = get_logger(__name__)
@@ -40,7 +40,6 @@ async def process_health_task(payload: dict[str, Any], deps: WorkerDependencies)
 
     try:
         router_doc, username, password = await load_router_credentials(router_store, guild_id, router_ip)
-
         client = RestconfClient(router_ip, username, password, timeout=20.0)
         service = RestconfService(client)
 

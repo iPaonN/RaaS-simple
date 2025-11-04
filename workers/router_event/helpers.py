@@ -16,7 +16,6 @@ async def load_router_credentials(
     router_doc = await router_store.get_router(guild_id, router_ip)
     if router_doc is None:
         raise RuntimeError(f"Router credentials not found for {router_ip}")
-
     username = router_doc.get("username")
     password = router_doc.get("password")
     if not username or not password:
