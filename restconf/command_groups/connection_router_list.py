@@ -18,6 +18,40 @@ from utils.logger import get_logger
 _logger = get_logger(__name__)
 
 
+async def _remove_stored_router(
+    router_store: MongoRouterStore,
+    guild_id: int,
+    ip: str,
+    reason: str,
+    error: Exception,
+) -> None:
+    try:
+        deleted = await router_store.delete_router(guild_id, ip)
+        if deleted:
+            _logger.info(
+                "Removed stored router %s for guild %s after %s failure: %s",
+                ip,
+                guild_id,
+                reason,
+                error,
+            )
+        else:  # pragma: no cover - benign mismatch
+            _logger.info(
+                "No stored router found to remove for guild %s (%s) after %s failure",
+                guild_id,
+                ip,
+                reason,
+            )
+    except Exception as removal_error:  # pragma: no cover - best effort cleanup
+        _logger.warning(
+            "Failed to remove stored router %s for guild %s after %s failure: %s",
+            ip,
+            guild_id,
+            reason,
+            removal_error,
+        )
+
+
 def build_router_list_command(
     connection_manager: ConnectionManager,
     connection_service: ConnectionService,
@@ -169,23 +203,25 @@ def build_router_list_command(
                     )
 
         except RestconfConnectionError as err:
+            await _remove_stored_router(router_store, guild_id, stored_ip, "connection", err)
             embed = create_error_embed(
                 title="❌ Connection Failed",
                 description=(
                     f"Could not connect to stored router **{stored_ip}**\n\n"
                     f"**Error:** {err}\n\n"
-                    "The stored credentials may be outdated."
+                    "The router has been removed from your saved list. Use `/connect` again once it is reachable."
                 ),
             )
             await interaction.followup.send(embed=embed)
 
         except RestconfHTTPError as err:
+            await _remove_stored_router(router_store, guild_id, stored_ip, "authentication", err)
             embed = create_error_embed(
                 title="❌ Authentication Failed",
                 description=(
                     f"Authentication failed for stored router **{stored_ip}**\n\n"
                     f"**Error:** {err}\n\n"
-                    "Please verify the stored username and password."
+                    "The router has been removed from your saved list. Use `/connect` again with updated credentials."
                 ),
             )
             await interaction.followup.send(embed=embed)

@@ -47,3 +47,9 @@ class MongoRouterStore:
                 }
             },
         )
+
+    async def delete_router(self, guild_id: int, ip: str) -> int:
+        """Remove a stored router profile. Returns number of deleted documents."""
+
+        result = await self._collection.delete_one({"guild_id": guild_id, "ip": ip})
+        return result.deleted_count
