@@ -133,7 +133,7 @@ class Utility(commands.Cog):
             ),
             inline=False
         )
-        
+
         # Fun commands
         embed.add_field(
             name="🎮 Fun",
@@ -145,7 +145,7 @@ class Utility(commands.Cog):
             ),
             inline=False
         )
-        
+
         # Utility commands
         embed.add_field(
             name="🔧 Utility",
@@ -158,36 +158,72 @@ class Utility(commands.Cog):
             ),
             inline=False
         )
-        
+
+        # Router connection and profiles
+        embed.add_field(
+            name="🔌 Router Sessions",
+            value=(
+                "`/connect` - Connect or show current router\n"
+                "`/disconnect` - Close the active connection\n"
+                "`/get-router-list` - View and switch stored routers"
+            ),
+            inline=False
+        )
+
+        # Configuration transfer commands
+        embed.add_field(
+            name="🧾 Config Sync",
+            value=(
+                "`/get-config` - Download running configuration\n"
+                "`/backup` - Restore configuration from a file"
+            ),
+            inline=False
+        )
+
         # RESTCONF Interface commands
         embed.add_field(
-            name="🌐 RESTCONF - Interfaces",
+            name="🌐 Interfaces",
             value=(
                 "`/get-interfaces` - List all interfaces\n"
                 "`/get-interface` - Interface details\n"
-                "`/set-interface-description` - Set description\n"
-                "`/set-interface-state` - Enable/disable\n"
-                "`/set-interface-ip` - Configure IP address"
+                "`/set-interface-description` - Update description\n"
+                "`/set-interface-state` - Enable or disable\n"
+                "`/set-interface-ip` - Configure IPv4 address"
             ),
             inline=False
         )
-        
+
         # RESTCONF Device commands
         embed.add_field(
-            name="🖥️ RESTCONF - Device",
+            name="🖥️ Device Settings",
             value=(
-                "`/get-hostname` - Get hostname\n"
-                "`/set-hostname` - Set hostname"
+                "`/get-hostname` · `/set-hostname`\n"
+                "`/get-banner-motd` · `/set-banner-motd`\n"
+                "`/get-domain-name` · `/set-domain-name`\n"
+                "`/get-name-servers`\n"
+                "`/save-config`"
             ),
             inline=False
         )
-        
+
         # RESTCONF Routing commands
         embed.add_field(
-            name="🛣️ RESTCONF - Routing",
+            name="🛣️ Routing",
             value=(
-                "`/get-routing-table` - Routing table\n"
-                "`/get-static-routes` - Static routes"
+                "`/get-static-routes` - List static routes\n"
+                "`/add-static-route` - Add a static route\n"
+                "`/delete-static-route` - Delete a static route"
+            ),
+            inline=False
+        )
+
+        # Background task commands
+        embed.add_field(
+            name="📦 Router Tasks",
+            value=(
+                "`/backup-config` - Queue a configuration backup\n"
+                "`/router-health` - Schedule a RESTCONF health check\n"
+                "`/task-status` - Check queued task status"
             ),
             inline=False
         )
