@@ -76,3 +76,43 @@ spec:
             limits:
               cpu: "500m"
               memory: "512Mi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: femrouter-monitor
+  namespace: discord-bot
+  labels:
+    app: femrouter
+    component: monitor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: femrouter
+      component: monitor
+  template:
+    metadata:
+      labels:
+        app: femrouter
+        component: monitor
+    spec:
+      imagePullSecrets:
+        - name: regcred
+      containers:
+        - name: monitor
+          image: docker.io/ypao/femrouter-monitor:latest
+          imagePullPolicy: Always
+          command: ["python", "workers/router_monitor/worker.py"]
+          envFrom:
+            - configMapRef:
+                name: discord-bot-config
+            - secretRef:
+                name: discord-2
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
